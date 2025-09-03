@@ -118,7 +118,14 @@ async function loadApiKeys() {
         tbody.innerHTML = keys.map(key => `
             <tr>
                 <td>${key.name}</td>
-                <td>${key.key.substring(0, 8)}...</td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <code class="me-2">${key.key.substring(0, 8)}...</code>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="copyApiKey('${key.key}')" title="Copy full API key">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
                 <td>${key.allowedModels.join(', ')}</td>
                 <td>${key.usageCount || 0}</td>
                 <td>${new Date(key.created).toLocaleDateString()}</td>
@@ -150,7 +157,8 @@ async function addApiKey() {
     });
     
     if (result && result.success) {
-        showAlert(`API Key created: ${result.key}`, 'success');
+        // Show the full API key in a modal for copying
+        showApiKeyCreated(result.key);
         document.getElementById('key-name').value = '';
         document.getElementById('allowed-models').value = '*';
         bootstrap.Modal.getInstance(document.getElementById('addKeyModal')).hide();
@@ -169,6 +177,81 @@ async function deleteApiKey(keyId) {
         showAlert('API key deleted', 'success');
         loadApiKeys();
     }
+}
+
+async function copyApiKey(apiKey) {
+    try {
+        await navigator.clipboard.writeText(apiKey);
+        showAlert('API key copied to clipboard!', 'success');
+    } catch (err) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = apiKey;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showAlert('API key copied to clipboard!', 'success');
+    }
+}
+
+function showApiKeyCreated(apiKey) {
+    // Create a modal dynamically to show the new API key
+    const modalHtml = `
+        <div class="modal fade" id="newApiKeyModal" tabindex="-1" aria-labelledby="newApiKeyModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="newApiKeyModalLabel">
+                            <i class="fas fa-key text-success"></i> API Key Created Successfully
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Important:</strong> This is the only time you'll see the full API key. Make sure to copy and save it now.
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label"><strong>Your API Key:</strong></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" id="newApiKeyValue" value="${apiKey}" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyNewApiKey()">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">I've saved the key</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('newApiKeyModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('newApiKeyModal'));
+    modal.show();
+    
+    // Auto-remove modal after it's hidden
+    document.getElementById('newApiKeyModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+function copyNewApiKey() {
+    const apiKeyValue = document.getElementById('newApiKeyValue').value;
+    copyApiKey(apiKeyValue);
 }
 
 // Models functions

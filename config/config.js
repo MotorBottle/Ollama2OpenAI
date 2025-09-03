@@ -27,14 +27,14 @@ class ConfigManager {
     // Configuration management
     getDefaultConfig() {
         return {
-            ollamaUrl: 'http://localhost:11434',
-            adminUsername: 'admin',
-            adminPasswordHash: bcrypt.hashSync('admin', 10),
-            serverPort: 3000,
-            sessionSecret: 'ollama2openai-secret-' + Date.now(),
+            ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+            adminUsername: process.env.ADMIN_USERNAME || 'admin',
+            adminPasswordHash: bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'admin', 10),
+            serverPort: parseInt(process.env.PORT) || 3000,
+            sessionSecret: process.env.SESSION_SECRET || ('ollama2openai-secret-' + Date.now()),
             rateLimit: {
                 windowMs: 15 * 60 * 1000, // 15 minutes
-                max: 1000 // requests per window
+                max: parseInt(process.env.RATE_LIMIT_MAX) || 1000
             }
         };
     }
