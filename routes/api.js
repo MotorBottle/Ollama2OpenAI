@@ -87,6 +87,10 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         // Store reasoning preferences for response processing
         req.reasoningPreferences = extractReasoningPreferences(req.body);
         
+        // Debug: Log the final request being sent to Ollama (remove in production)
+        // console.log('Ollama Request:', JSON.stringify(ollamaRequest, null, 2));
+        // console.log('Original Request body:', JSON.stringify(req.body, null, 2));
+        
         // Forward request to Ollama
         const ollamaResponse = await axios.post(
             `${config.config.ollamaUrl}/api/chat`,
