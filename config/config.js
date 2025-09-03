@@ -40,15 +40,40 @@ class ConfigManager {
     }
 
     loadConfig() {
+        let config = this.getDefaultConfig();
+        
+        // Load saved config if it exists
         try {
             if (fs.existsSync(CONFIG_FILE)) {
                 const data = fs.readFileSync(CONFIG_FILE, 'utf8');
-                return { ...this.getDefaultConfig(), ...JSON.parse(data) };
+                const savedConfig = JSON.parse(data);
+                config = { ...config, ...savedConfig };
             }
         } catch (error) {
             console.error('Error loading config:', error.message);
         }
-        return this.getDefaultConfig();
+        
+        // Environment variables always override everything
+        if (process.env.OLLAMA_URL) {
+            config.ollamaUrl = process.env.OLLAMA_URL;
+        }
+        if (process.env.ADMIN_USERNAME) {
+            config.adminUsername = process.env.ADMIN_USERNAME;
+        }
+        if (process.env.ADMIN_PASSWORD) {
+            config.adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);
+        }
+        if (process.env.PORT) {
+            config.serverPort = parseInt(process.env.PORT);
+        }
+        if (process.env.SESSION_SECRET) {
+            config.sessionSecret = process.env.SESSION_SECRET;
+        }
+        if (process.env.RATE_LIMIT_MAX) {
+            config.rateLimit.max = parseInt(process.env.RATE_LIMIT_MAX);
+        }
+        
+        return config;
     }
 
     saveConfig() {
