@@ -4,7 +4,7 @@
 
 一个增强版的 Ollama OpenAI 兼容网关，具备管理界面和高级参数控制功能。
 
-## 🚀 为什么选择这个而不是 Ollama 内置的 OpenAI 端点？
+## 🚀 为什么选择这个而不是 Ollama 内置的 OpenAI 接口？
 
 - **🧠 完整的思考模型支持** - 完全支持 `think` 参数和响应中的推理内容（Ollama 内置端点不支持）
 - **⚙️ 高级参数控制** - 设置特定模型的参数覆盖，完全支持 Ollama 参数（`num_ctx`、`num_predict`、`think` 等）
