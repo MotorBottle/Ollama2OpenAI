@@ -257,11 +257,16 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
         messages: openaiRequest.messages,
         stream: openaiRequest.stream || false,
         options: {
-            ...overrides
+            ...overrides // Start with overrides as base
         }
     };
     
-    // Map OpenAI parameters to Ollama
+    // Set thinking at root level if specified (not in options)
+    if (openaiRequest.think !== undefined) {
+        ollamaRequest.think = openaiRequest.think;
+    }
+    
+    // Map OpenAI parameters to Ollama (user params override pre-set overrides)
     if (openaiRequest.temperature !== undefined) {
         ollamaRequest.options.temperature = openaiRequest.temperature;
     }
@@ -278,15 +283,17 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
         ollamaRequest.options.presence_penalty = openaiRequest.presence_penalty;
     }
     
-    // Handle Ollama-specific parameters passed through
+    // Handle Ollama-specific parameters passed through (user params override pre-set overrides)
     if (openaiRequest.num_ctx !== undefined) {
         ollamaRequest.options.num_ctx = openaiRequest.num_ctx;
     }
-    if (openaiRequest.think !== undefined) {
-        ollamaRequest.options.think = openaiRequest.think;
-    }
     if (openaiRequest.num_predict !== undefined) {
         ollamaRequest.options.num_predict = openaiRequest.num_predict;
+    }
+    
+    // Handle stream parameter (already set in main structure, but ensure consistency)
+    if (openaiRequest.stream !== undefined) {
+        ollamaRequest.stream = openaiRequest.stream;
     }
     
     return ollamaRequest;
