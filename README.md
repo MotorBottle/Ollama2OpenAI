@@ -16,32 +16,61 @@ A powerful gateway service that converts Ollama API into OpenAI-compatible endpo
 
 ## Quick Start
 
-### 1. Install Dependencies
+Choose between Docker deployment (recommended) or manual installation:
+
+### Option A: Docker Deployment (Recommended)
+
+#### With Included Ollama Service
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd ollama2openai
+
+# Start both Ollama and Gateway
+docker-compose up -d
+
+# Pull some models (optional)
+docker exec ollama2openai-ollama ollama pull llama3.2:3b
+```
+
+#### With External Ollama Instance
+
+```bash
+# Use external Ollama configuration
+docker-compose -f docker-compose.external.yml up -d
+```
+
+### Option B: Manual Installation
+
+#### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Start Ollama
+#### 2. Start Ollama
 
 Make sure Ollama is running on your system:
 ```bash
 ollama serve
 ```
 
-### 3. Run the Gateway
+#### 3. Run the Gateway
 
 ```bash
 npm start
+# OR use the startup script
+./start.sh
 ```
 
-### 4. Access Admin Interface
+### Access Admin Interface
 
 Navigate to `http://localhost:3000` and login with:
 - **Username:** admin
 - **Password:** admin
 
-### 5. Configure and Create API Keys
+### Configure and Create API Keys
 
 1. Go to Settings and configure your Ollama URL (default: `http://localhost:11434`)
 2. Navigate to Models and refresh to load available models from Ollama
@@ -211,6 +240,67 @@ ollama2openai/
 └── logs/
     └── access.log            # HTTP access logs
 ```
+
+## Docker Deployment
+
+### Available Docker Configurations
+
+1. **docker-compose.yml** - Includes both Ollama and Gateway services
+2. **docker-compose.external.yml** - Gateway only, connects to external Ollama
+
+### Docker Commands
+
+```bash
+# Build and start services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f gateway
+docker-compose logs -f ollama
+
+# Stop services
+docker-compose down
+
+# Rebuild after code changes
+docker-compose up -d --build
+
+# Using external Ollama
+docker-compose -f docker-compose.external.yml up -d
+```
+
+### Environment Variables for Docker
+
+Create a `.env` file for Docker environment variables:
+
+```bash
+# Gateway configuration
+PORT=3000
+OLLAMA_URL=http://ollama:11434
+SESSION_SECRET=your-secret-key
+
+# If using external Ollama
+OLLAMA_URL=http://host.docker.internal:11434
+```
+
+### GPU Support (NVIDIA)
+
+Uncomment the GPU configuration in `docker-compose.yml`:
+
+```yaml
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: 1
+          capabilities: [gpu]
+```
+
+### Persistent Data
+
+Docker volumes are automatically created for:
+- Gateway configuration and logs
+- Ollama models and data
 
 ## Development
 

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Ollama2OpenAI Gateway
+  gateway:
+    build: .
+    container_name: ollama2openai-gateway
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+      - SESSION_SECRET=${SESSION_SECRET:-ollama2openai-docker-secret}
+    volumes:
+      # Persistent data storage
+      - gateway_data:/usr/src/app/data
+      - gateway_logs:/usr/src/app/logs
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    networks:
+      - ollama2openai
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Ollama service (optional - remove if using external Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama2openai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      # Persistent model storage
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - ollama2openai
+    # Uncomment below if you have NVIDIA GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  ollama2openai:
+    driver: bridge
+
+volumes:
+  # Gateway persistent data
+  gateway_data:
+    driver: local
+  gateway_logs:
+    driver: local
+  # Ollama persistent data
+  ollama_data:
+    driver: local
