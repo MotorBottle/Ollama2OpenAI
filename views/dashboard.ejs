@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Ollama2OpenAI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            height: 100vh;
+            background-color: #343a40;
+            position: fixed;
+            width: 250px;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        .nav-link {
+            color: #adb5bd;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #fff;
+            background-color: #495057;
+        }
+        .card {
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+        }
+        .json-editor {
+            font-family: 'Courier New', monospace;
+            height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="p-3">
+            <h5 class="text-white">Ollama2OpenAI</h5>
+            <small class="text-muted">Admin Panel</small>
+        </div>
+        <ul class="nav nav-pills flex-column">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-section="overview">
+                    <i class="fas fa-tachometer-alt me-2"></i> Overview
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="settings">
+                    <i class="fas fa-cog me-2"></i> Settings
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="api-keys">
+                    <i class="fas fa-key me-2"></i> API Keys
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="models">
+                    <i class="fas fa-robot me-2"></i> Models
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="overrides">
+                    <i class="fas fa-sliders-h me-2"></i> Parameter Overrides
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-section="logs">
+                    <i class="fas fa-list me-2"></i> Usage Logs
+                </a>
+            </li>
+            <li class="nav-item mt-auto">
+                <form method="POST" action="/logout" class="d-inline">
+                    <button type="submit" class="btn btn-outline-light btn-sm w-100">
+                        <i class="fas fa-sign-out-alt me-2"></i> Logout
+                    </button>
+                </form>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Overview Section -->
+        <div id="overview-section" class="content-section">
+            <h2>Dashboard Overview</h2>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-key fa-2x mb-2"></i>
+                            <h4 id="total-keys">0</h4>
+                            <small>Active API Keys</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-robot fa-2x mb-2"></i>
+                            <h4 id="total-models">0</h4>
+                            <small>Available Models</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-chart-line fa-2x mb-2"></i>
+                            <h4 id="total-requests">0</h4>
+                            <small>Total Requests</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-server fa-2x mb-2"></i>
+                            <h4 id="ollama-status">Unknown</h4>
+                            <small>Ollama Status</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div id="settings-section" class="content-section" style="display:none;">
+            <h2>Settings</h2>
+            <div class="card">
+                <div class="card-body">
+                    <form id="settings-form">
+                        <div class="mb-3">
+                            <label for="ollama-url" class="form-label">Ollama API URL</label>
+                            <input type="url" class="form-control" id="ollama-url" placeholder="http://localhost:11434">
+                        </div>
+                        <div class="mb-3">
+                            <label for="admin-password" class="form-label">Admin Password</label>
+                            <input type="password" class="form-control" id="admin-password" placeholder="Leave empty to keep current">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Keys Section -->
+        <div id="api-keys-section" class="content-section" style="display:none;">
+            <h2>API Key Management</h2>
+            <div class="card">
+                <div class="card-header">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addKeyModal">
+                        <i class="fas fa-plus"></i> Add API Key
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table" id="api-keys-table">
+                            <thead>
+                                <tr>
+                                    <th>Key Name</th>
+                                    <th>Key (partial)</th>
+                                    <th>Allowed Models</th>
+                                    <th>Usage Count</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- API keys will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Models Section -->
+        <div id="models-section" class="content-section" style="display:none;">
+            <h2>Model Configuration</h2>
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-success" onclick="refreshModels()">
+                            <i class="fas fa-sync"></i> Refresh from Ollama
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table" id="models-table">
+                            <thead>
+                                <tr>
+                                    <th>Ollama Model</th>
+                                    <th>Display Name</th>
+                                    <th>Enabled</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Models will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parameter Overrides Section -->
+        <div id="overrides-section" class="content-section" style="display:none;">
+            <h2>Parameter Overrides</h2>
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted">Set default parameters for specific models</p>
+                    <div class="mb-3">
+                        <label for="overrides-json" class="form-label">Parameter Overrides (JSON)</label>
+                        <textarea class="form-control json-editor" id="overrides-json" placeholder='{
+  "gpt-4": {
+    "num_ctx": 8192,
+    "temperature": 0.7
+  },
+  "qwen2.5:72b": {
+    "num_ctx": 32768,
+    "think": true
+  }
+}'></textarea>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveOverrides()">Save Overrides</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <div id="logs-section" class="content-section" style="display:none;">
+            <h2>Usage Logs</h2>
+            <div class="card">
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <select class="form-select" id="log-filter-key">
+                                <option value="">All API Keys</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="log-filter-model">
+                                <option value="">All Models</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="date" class="form-control" id="log-filter-date">
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-secondary" onclick="filterLogs()">Filter</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>API Key</th>
+                                    <th>Model</th>
+                                    <th>Tokens</th>
+                                    <th>Response Time</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Logs will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add API Key Modal -->
+    <div class="modal fade" id="addKeyModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add API Key</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-key-form">
+                        <div class="mb-3">
+                            <label for="key-name" class="form-label">Key Name</label>
+                            <input type="text" class="form-control" id="key-name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="allowed-models" class="form-label">Allowed Models (comma separated, or * for all)</label>
+                            <input type="text" class="form-control" id="allowed-models" value="*">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="addApiKey()">Create Key</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>
