@@ -1,5 +1,7 @@
 # Ollama2OpenAI Gateway
 
+**Languages:** English | [简体中文](README.zh.md)
+
 An enhanced OpenAI-compatible gateway for Ollama with admin interface and advanced parameter control.
 
 ## 🚀 Why Use This Instead of Ollama's Built-in OpenAI Endpoint?
