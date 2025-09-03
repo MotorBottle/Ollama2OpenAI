@@ -19,7 +19,8 @@
     "bcrypt": "^5.1.1",
     "uuid": "^9.0.1",
     "body-parser": "^1.20.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

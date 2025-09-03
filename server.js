@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
+const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
@@ -13,6 +14,21 @@ app.use(morgan('combined', {
     stream: fs.createWriteStream(path.join(__dirname, 'logs', 'access.log'), { flags: 'a' })
 }));
 app.use(morgan('dev'));
+
+// CORS configuration
+app.use(cors({
+    origin: function(origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        // Allow any origin for development, but you can restrict this in production
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+}));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
