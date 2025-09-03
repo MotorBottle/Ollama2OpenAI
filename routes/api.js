@@ -84,6 +84,9 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         // Convert OpenAI request to Ollama format
         const ollamaRequest = convertToOllamaRequest(req.body, actualModel, overrides);
         
+        // Store reasoning preferences for response processing
+        req.reasoningPreferences = extractReasoningPreferences(req.body);
+        
         // Forward request to Ollama
         const ollamaResponse = await axios.post(
             `${config.config.ollamaUrl}/api/chat`,
@@ -118,7 +121,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                         }
                         
                         // Convert to OpenAI streaming format
-                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel);
+                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel, req.reasoningPreferences);
                         res.write(`data: ${JSON.stringify(openaiChunk)}\n\n`);
                         
                         if (data.done) {
@@ -175,7 +178,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             });
             
             ollamaResponse.data.on('end', () => {
-                const openaiResponse = convertToOpenAIResponse(responseData, req.requestedModel, fullResponse, fullThinking);
+                const openaiResponse = convertToOpenAIResponse(responseData, req.requestedModel, fullResponse, fullThinking, req.reasoningPreferences);
                 logRequest(req, fullResponse, Date.now() - startTime, 'success');
                 res.json(openaiResponse);
             });
@@ -251,6 +254,21 @@ function getModelMapping(displayName) {
     return model ? model.originalName : displayName;
 }
 
+function extractReasoningPreferences(openaiRequest) {
+    if (openaiRequest.reasoning !== undefined) {
+        return {
+            hasReasoningRequest: true,
+            shouldIncludeReasoning: openaiRequest.reasoning.enabled !== false && openaiRequest.reasoning.exclude !== true,
+            effort: openaiRequest.reasoning.effort || 'medium'
+        };
+    }
+    return {
+        hasReasoningRequest: false,
+        shouldIncludeReasoning: true, // Default to include if think: true is used
+        effort: 'medium'
+    };
+}
+
 function convertToOllamaRequest(openaiRequest, model, overrides) {
     const ollamaRequest = {
         model: model,
@@ -266,17 +284,8 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
         // Direct Ollama format: {"think": true/false}
         ollamaRequest.think = openaiRequest.think;
     } else if (openaiRequest.reasoning !== undefined) {
-        // OpenRouter/OpenAI format: multiple variations
-        if (openaiRequest.reasoning.enabled !== undefined) {
-            // Format: {"reasoning": {"enabled": true/false}}
-            ollamaRequest.think = openaiRequest.reasoning.enabled;
-        } else if (openaiRequest.reasoning.exclude !== undefined) {
-            // Format: {"reasoning": {"effort": "high", "exclude": false}}
-            ollamaRequest.think = !openaiRequest.reasoning.exclude;
-        } else {
-            // Default to true if reasoning object exists but no explicit enabled/exclude
-            ollamaRequest.think = true;
-        }
+        // OpenRouter/OpenAI format: always enable thinking, handle exclude/enabled in response
+        ollamaRequest.think = true;
     }
     
     // Map OpenAI parameters to Ollama (user params override pre-set overrides)
@@ -312,14 +321,14 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
     return ollamaRequest;
 }
 
-function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking) {
+function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking, reasoningPreferences = {}) {
     const message = {
         role: 'assistant',
         content: content
     };
     
-    // Add thinking content if present
-    if (thinking && thinking.trim()) {
+    // Add thinking content if present and not excluded by user preferences
+    if (thinking && thinking.trim() && reasoningPreferences.shouldIncludeReasoning !== false) {
         message.reasoning_content = thinking;
     }
     
@@ -341,7 +350,7 @@ function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking) {
     };
 }
 
-function convertToOpenAIStreamResponse(ollamaChunk, modelName) {
+function convertToOpenAIStreamResponse(ollamaChunk, modelName, reasoningPreferences = {}) {
     if (ollamaChunk.done) {
         return {
             id: `chatcmpl-${Date.now()}`,
@@ -363,8 +372,8 @@ function convertToOpenAIStreamResponse(ollamaChunk, modelName) {
         delta.content = ollamaChunk.message.content;
     }
     
-    // Add reasoning content if present (streaming format)
-    if (ollamaChunk.message?.thinking) {
+    // Add reasoning content if present and not excluded by user preferences
+    if (ollamaChunk.message?.thinking && reasoningPreferences.shouldIncludeReasoning !== false) {
         delta.reasoning_content = ollamaChunk.message.thinking;
     }
     
