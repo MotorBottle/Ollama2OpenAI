@@ -258,7 +258,7 @@ function extractReasoningPreferences(openaiRequest) {
     if (openaiRequest.reasoning !== undefined) {
         return {
             hasReasoningRequest: true,
-            shouldIncludeReasoning: openaiRequest.reasoning.enabled !== false && openaiRequest.reasoning.exclude !== true,
+            shouldIncludeReasoning: openaiRequest.reasoning.exclude !== true, // Only exclude if explicitly set to true
             effort: openaiRequest.reasoning.effort || 'medium'
         };
     }
@@ -284,8 +284,14 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
         // Direct Ollama format: {"think": true/false}
         ollamaRequest.think = openaiRequest.think;
     } else if (openaiRequest.reasoning !== undefined) {
-        // OpenRouter/OpenAI format: always enable thinking, handle exclude/enabled in response
-        ollamaRequest.think = true;
+        // OpenRouter/OpenAI format: check enabled/exclude logic
+        if (openaiRequest.reasoning.enabled === false) {
+            // enabled: false → disable thinking entirely
+            ollamaRequest.think = false;
+        } else {
+            // enabled: true OR exclude: true/false → enable thinking, handle exclude in response
+            ollamaRequest.think = true;
+        }
     }
     
     // Map OpenAI parameters to Ollama (user params override pre-set overrides)
