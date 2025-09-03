@@ -101,18 +101,24 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             res.setHeader('Connection', 'keep-alive');
             
             let responseContent = '';
+            let thinkingContent = '';
             
             ollamaResponse.data.on('data', (chunk) => {
                 try {
                     const lines = chunk.toString().split('\n').filter(line => line.trim());
                     for (const line of lines) {
                         const data = JSON.parse(line);
-                        if (data.message && data.message.content) {
-                            responseContent += data.message.content;
+                        if (data.message) {
+                            if (data.message.content) {
+                                responseContent += data.message.content;
+                            }
+                            if (data.message.thinking) {
+                                thinkingContent += data.message.thinking;
+                            }
                         }
                         
                         // Convert to OpenAI streaming format
-                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel);
+                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel, thinkingContent);
                         res.write(`data: ${JSON.stringify(openaiChunk)}\n\n`);
                         
                         if (data.done) {
@@ -143,6 +149,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         } else {
             // Handle non-streaming response
             let fullResponse = '';
+            let fullThinking = '';
             let responseData = {};
             
             ollamaResponse.data.on('data', (chunk) => {
@@ -150,8 +157,13 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                     const lines = chunk.toString().split('\n').filter(line => line.trim());
                     for (const line of lines) {
                         const data = JSON.parse(line);
-                        if (data.message && data.message.content) {
-                            fullResponse += data.message.content;
+                        if (data.message) {
+                            if (data.message.content) {
+                                fullResponse += data.message.content;
+                            }
+                            if (data.message.thinking) {
+                                fullThinking += data.message.thinking;
+                            }
                         }
                         if (data.done) {
                             responseData = data;
@@ -163,7 +175,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             });
             
             ollamaResponse.data.on('end', () => {
-                const openaiResponse = convertToOpenAIResponse(responseData, req.requestedModel, fullResponse);
+                const openaiResponse = convertToOpenAIResponse(responseData, req.requestedModel, fullResponse, fullThinking);
                 logRequest(req, fullResponse, Date.now() - startTime, 'success');
                 res.json(openaiResponse);
             });
@@ -280,7 +292,17 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
     return ollamaRequest;
 }
 
-function convertToOpenAIResponse(ollamaResponse, modelName, content) {
+function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking) {
+    const message = {
+        role: 'assistant',
+        content: content
+    };
+    
+    // Add thinking content if present
+    if (thinking && thinking.trim()) {
+        message.reasoning_content = thinking;
+    }
+    
     return {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -288,10 +310,7 @@ function convertToOpenAIResponse(ollamaResponse, modelName, content) {
         model: modelName,
         choices: [{
             index: 0,
-            message: {
-                role: 'assistant',
-                content: content
-            },
+            message: message,
             finish_reason: ollamaResponse.done ? 'stop' : null
         }],
         usage: {
@@ -302,8 +321,14 @@ function convertToOpenAIResponse(ollamaResponse, modelName, content) {
     };
 }
 
-function convertToOpenAIStreamResponse(ollamaChunk, modelName) {
+function convertToOpenAIStreamResponse(ollamaChunk, modelName, accumulatedThinking) {
     if (ollamaChunk.done) {
+        // For the final chunk, include reasoning content if available
+        const finalDelta = {};
+        if (accumulatedThinking && accumulatedThinking.trim()) {
+            finalDelta.reasoning_content = accumulatedThinking;
+        }
+        
         return {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion.chunk',
@@ -311,10 +336,22 @@ function convertToOpenAIStreamResponse(ollamaChunk, modelName) {
             model: modelName,
             choices: [{
                 index: 0,
-                delta: {},
+                delta: finalDelta,
                 finish_reason: 'stop'
             }]
         };
+    }
+    
+    const delta = {};
+    
+    // Add content if present
+    if (ollamaChunk.message?.content) {
+        delta.content = ollamaChunk.message.content;
+    }
+    
+    // Add thinking content if present (for streaming thinking)
+    if (ollamaChunk.message?.thinking) {
+        delta.reasoning_content = ollamaChunk.message.thinking;
     }
     
     return {
@@ -324,9 +361,7 @@ function convertToOpenAIStreamResponse(ollamaChunk, modelName) {
         model: modelName,
         choices: [{
             index: 0,
-            delta: {
-                content: ollamaChunk.message?.content || ''
-            },
+            delta: delta,
             finish_reason: null
         }]
     };
