@@ -45,9 +45,6 @@ function showSection(sectionName) {
             case 'models':
                 loadModels();
                 break;
-            case 'overrides':
-                loadOverrides();
-                break;
             case 'logs':
                 loadLogs();
                 break;
@@ -259,13 +256,19 @@ async function loadModels() {
     const models = await apiCall('/admin/models');
     if (models) {
         const tbody = document.querySelector('#models-table tbody');
-        tbody.innerHTML = models.map(model => `
-            <tr>
+        tbody.innerHTML = models.map(model => {
+            const overridesJson = JSON.stringify(model.parameterOverrides || {}, null, 1);
+            return `
+            <tr data-model-id="${model.id}">
                 <td>${model.originalName}</td>
                 <td>
-                    <input type="text" class="form-control form-control-sm" 
+                    <input type="text" class="form-control form-control-sm model-display-name" 
                            value="${model.displayName}" 
-                           onchange="updateModelName('${model.id}', this.value)">
+                           readonly>
+                </td>
+                <td>
+                    <textarea class="form-control form-control-sm model-overrides" 
+                              rows="2" readonly>${overridesJson}</textarea>
                 </td>
                 <td>
                     <input type="checkbox" class="form-check-input" 
@@ -273,12 +276,19 @@ async function loadModels() {
                            onchange="toggleModel('${model.id}', this.checked)">
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-secondary" onclick="editModel('${model.id}')">
-                        <i class="fas fa-edit"></i>
+                    <button class="btn btn-sm btn-outline-primary edit-btn" onclick="editModel('${model.id}')">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-success save-btn d-none" onclick="saveModel('${model.id}')">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                    <button class="btn btn-sm btn-secondary cancel-btn d-none ms-1" onclick="cancelEdit('${model.id}')">
+                        <i class="fas fa-times"></i>
                     </button>
                 </td>
             </tr>
-        `).join('');
+            `;
+        }).join('');
     }
 }
 
@@ -290,11 +300,98 @@ async function refreshModels() {
     }
 }
 
-async function updateModelName(modelId, newName) {
-    await apiCall(`/admin/models/${modelId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ displayName: newName })
-    });
+async function editModel(modelId) {
+    const row = document.querySelector(`tr[data-model-id="${modelId}"]`);
+    const displayNameInput = row.querySelector('.model-display-name');
+    const overridesTextarea = row.querySelector('.model-overrides');
+    const editBtn = row.querySelector('.edit-btn');
+    const saveBtn = row.querySelector('.save-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
+    
+    // Store original values for cancel functionality
+    row.dataset.originalDisplayName = displayNameInput.value;
+    row.dataset.originalOverrides = overridesTextarea.value;
+    
+    // Enable editing
+    displayNameInput.removeAttribute('readonly');
+    overridesTextarea.removeAttribute('readonly');
+    
+    // Toggle buttons
+    editBtn.classList.add('d-none');
+    saveBtn.classList.remove('d-none');
+    cancelBtn.classList.remove('d-none');
+}
+
+async function saveModel(modelId) {
+    const row = document.querySelector(`tr[data-model-id="${modelId}"]`);
+    const displayNameInput = row.querySelector('.model-display-name');
+    const overridesTextarea = row.querySelector('.model-overrides');
+    const editBtn = row.querySelector('.edit-btn');
+    const saveBtn = row.querySelector('.save-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
+    
+    try {
+        // Validate JSON
+        let parameterOverrides = {};
+        const overridesText = overridesTextarea.value.trim();
+        if (overridesText) {
+            parameterOverrides = JSON.parse(overridesText);
+        }
+        
+        // Save to backend
+        const result = await apiCall(`/admin/models/${modelId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ 
+                displayName: displayNameInput.value,
+                parameterOverrides: parameterOverrides
+            })
+        });
+        
+        if (result && result.success) {
+            showAlert('Model configuration saved successfully', 'success');
+            
+            // Disable editing
+            displayNameInput.setAttribute('readonly', true);
+            overridesTextarea.setAttribute('readonly', true);
+            
+            // Toggle buttons
+            editBtn.classList.remove('d-none');
+            saveBtn.classList.add('d-none');
+            cancelBtn.classList.add('d-none');
+            
+            // Clean up stored values
+            delete row.dataset.originalDisplayName;
+            delete row.dataset.originalOverrides;
+        }
+    } catch (error) {
+        showAlert('Invalid JSON in parameter overrides: ' + error.message, 'danger');
+    }
+}
+
+function cancelEdit(modelId) {
+    const row = document.querySelector(`tr[data-model-id="${modelId}"]`);
+    const displayNameInput = row.querySelector('.model-display-name');
+    const overridesTextarea = row.querySelector('.model-overrides');
+    const editBtn = row.querySelector('.edit-btn');
+    const saveBtn = row.querySelector('.save-btn');
+    const cancelBtn = row.querySelector('.cancel-btn');
+    
+    // Restore original values
+    displayNameInput.value = row.dataset.originalDisplayName;
+    overridesTextarea.value = row.dataset.originalOverrides;
+    
+    // Disable editing
+    displayNameInput.setAttribute('readonly', true);
+    overridesTextarea.setAttribute('readonly', true);
+    
+    // Toggle buttons
+    editBtn.classList.remove('d-none');
+    saveBtn.classList.add('d-none');
+    cancelBtn.classList.add('d-none');
+    
+    // Clean up stored values
+    delete row.dataset.originalDisplayName;
+    delete row.dataset.originalOverrides;
 }
 
 async function toggleModel(modelId, enabled) {
@@ -304,31 +401,6 @@ async function toggleModel(modelId, enabled) {
     });
 }
 
-// Parameter Overrides functions
-async function loadOverrides() {
-    const overrides = await apiCall('/admin/overrides');
-    if (overrides) {
-        document.getElementById('overrides-json').value = JSON.stringify(overrides, null, 2);
-    }
-}
-
-async function saveOverrides() {
-    try {
-        const overridesText = document.getElementById('overrides-json').value;
-        const overrides = JSON.parse(overridesText);
-        
-        const result = await apiCall('/admin/overrides', {
-            method: 'POST',
-            body: JSON.stringify(overrides)
-        });
-        
-        if (result && result.success) {
-            showAlert('Parameter overrides saved', 'success');
-        }
-    } catch (error) {
-        showAlert('Invalid JSON format', 'danger');
-    }
-}
 
 // Logs functions
 async function loadLogs() {

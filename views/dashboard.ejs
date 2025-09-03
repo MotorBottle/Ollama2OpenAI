@@ -72,11 +72,6 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#" data-section="overrides">
-                    <i class="fas fa-sliders-h me-2"></i> Parameter Overrides
-                </a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link" href="#" data-section="logs">
                     <i class="fas fa-list me-2"></i> Usage Logs
                 </a>
@@ -197,12 +192,43 @@
                             <i class="fas fa-sync"></i> Refresh from Ollama
                         </button>
                     </div>
+                    
+                    <!-- Parameter Overrides Example -->
+                    <div class="alert alert-info mb-3">
+                        <h6><i class="fas fa-info-circle"></i> Parameter Overrides Examples (Ollama Format):</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Basic Settings:</strong>
+                                <pre class="mb-2"><code>{
+  "temperature": 0.7,
+  "num_ctx": 8192,
+  "num_predict": 1000
+}</code></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Reasoning Model:</strong>
+                                <pre class="mb-2"><code>{
+  "think": true,
+  "temperature": 0.8,
+  "num_ctx": 32768
+}</code></pre>
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            <strong>Important:</strong> Use <strong>Ollama parameter names only</strong>:
+                            <br>• <code>num_predict</code> (not <code>max_tokens</code>), <code>num_ctx</code>, <code>temperature</code>, etc.
+                            <br>• <code>think</code> parameter controls reasoning output for thinking models
+                            <br>• These are model defaults - user API params will override these settings
+                            <br><strong>Precedence:</strong> User API params → Model overrides → System defaults
+                        </small>
+                    </div>
                     <div class="table-responsive">
                         <table class="table" id="models-table">
                             <thead>
                                 <tr>
                                     <th>Ollama Model</th>
                                     <th>Display Name</th>
+                                    <th>Parameter Overrides</th>
                                     <th>Enabled</th>
                                     <th>Actions</th>
                                 </tr>
@@ -216,29 +242,6 @@
             </div>
         </div>
 
-        <!-- Parameter Overrides Section -->
-        <div id="overrides-section" class="content-section" style="display:none;">
-            <h2>Parameter Overrides</h2>
-            <div class="card">
-                <div class="card-body">
-                    <p class="text-muted">Set default parameters for specific models</p>
-                    <div class="mb-3">
-                        <label for="overrides-json" class="form-label">Parameter Overrides (JSON)</label>
-                        <textarea class="form-control json-editor" id="overrides-json" placeholder='{
-  "gpt-4": {
-    "num_ctx": 8192,
-    "temperature": 0.7
-  },
-  "qwen2.5:72b": {
-    "num_ctx": 32768,
-    "think": true
-  }
-}'></textarea>
-                    </div>
-                    <button type="button" class="btn btn-primary" onclick="saveOverrides()">Save Overrides</button>
-                </div>
-            </div>
-        </div>
 
         <!-- Logs Section -->
         <div id="logs-section" class="content-section" style="display:none;">

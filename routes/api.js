@@ -274,16 +274,24 @@ function extractReasoningPreferences(openaiRequest) {
 }
 
 function convertToOllamaRequest(openaiRequest, model, overrides) {
+    // Separate root-level parameters from options parameters
+    const { think: overrideThink, ...optionsOverrides } = overrides;
+    
     const ollamaRequest = {
         model: model,
         messages: openaiRequest.messages,
         stream: openaiRequest.stream || false,
         options: {
-            ...overrides // Start with overrides as base
+            ...optionsOverrides // Start with options overrides as base
         }
     };
     
-    // Handle thinking/reasoning parameters (support multiple formats)
+    // Apply think parameter from overrides first (if set)
+    if (overrideThink !== undefined) {
+        ollamaRequest.think = overrideThink;
+    }
+    
+    // Handle thinking/reasoning parameters from user request (user params override model defaults)
     if (openaiRequest.think !== undefined) {
         // Direct Ollama format: {"think": true/false}
         ollamaRequest.think = openaiRequest.think;

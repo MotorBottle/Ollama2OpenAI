@@ -224,6 +224,13 @@ class ConfigManager {
     }
 
     getModelOverrides(modelName) {
+        // First check individual model parameter overrides (new integrated approach)
+        const model = this.models.find(m => m.displayName === modelName || m.originalName === modelName);
+        if (model && model.parameterOverrides) {
+            return model.parameterOverrides;
+        }
+        
+        // Fall back to global overrides (legacy support)
         return this.overrides[modelName] || {};
     }
 
