@@ -13,6 +13,10 @@
 - **🎛️ 管理 Web 界面** - 通过 Web 仪表板轻松配置和管理
 - **🏷️ 模型名称映射** - 为模型自定义显示名称
 
+<img width="1916" height="922" alt="image" src="https://github.com/user-attachments/assets/92d5e667-c157-485a-b1d2-8064d8f99c0f" />
+<img width="1913" height="922" alt="image" src="https://github.com/user-attachments/assets/00f44958-c0ff-4f34-926f-eb5096ce4f4c" />
+<img width="1917" height="922" alt="image" src="https://github.com/user-attachments/assets/51d90c12-8e32-4ba2-b603-f7a2060edf44" />
+
 ## 快速开始（仅 Docker）
 
 ```bash
