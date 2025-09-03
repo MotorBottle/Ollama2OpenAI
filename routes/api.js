@@ -118,7 +118,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                         }
                         
                         // Convert to OpenAI streaming format
-                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel, thinkingContent);
+                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel);
                         res.write(`data: ${JSON.stringify(openaiChunk)}\n\n`);
                         
                         if (data.done) {
@@ -261,9 +261,22 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
         }
     };
     
-    // Set thinking at root level if specified (not in options)
+    // Handle thinking/reasoning parameters (support multiple formats)
     if (openaiRequest.think !== undefined) {
+        // Direct Ollama format: {"think": true/false}
         ollamaRequest.think = openaiRequest.think;
+    } else if (openaiRequest.reasoning !== undefined) {
+        // OpenRouter/OpenAI format: multiple variations
+        if (openaiRequest.reasoning.enabled !== undefined) {
+            // Format: {"reasoning": {"enabled": true/false}}
+            ollamaRequest.think = openaiRequest.reasoning.enabled;
+        } else if (openaiRequest.reasoning.exclude !== undefined) {
+            // Format: {"reasoning": {"effort": "high", "exclude": false}}
+            ollamaRequest.think = !openaiRequest.reasoning.exclude;
+        } else {
+            // Default to true if reasoning object exists but no explicit enabled/exclude
+            ollamaRequest.think = true;
+        }
     }
     
     // Map OpenAI parameters to Ollama (user params override pre-set overrides)
@@ -328,14 +341,8 @@ function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking) {
     };
 }
 
-function convertToOpenAIStreamResponse(ollamaChunk, modelName, accumulatedThinking) {
+function convertToOpenAIStreamResponse(ollamaChunk, modelName) {
     if (ollamaChunk.done) {
-        // For the final chunk, include reasoning content if available
-        const finalDelta = {};
-        if (accumulatedThinking && accumulatedThinking.trim()) {
-            finalDelta.reasoning_content = accumulatedThinking;
-        }
-        
         return {
             id: `chatcmpl-${Date.now()}`,
             object: 'chat.completion.chunk',
@@ -343,7 +350,7 @@ function convertToOpenAIStreamResponse(ollamaChunk, modelName, accumulatedThinki
             model: modelName,
             choices: [{
                 index: 0,
-                delta: finalDelta,
+                delta: {},
                 finish_reason: 'stop'
             }]
         };
@@ -356,7 +363,7 @@ function convertToOpenAIStreamResponse(ollamaChunk, modelName, accumulatedThinki
         delta.content = ollamaChunk.message.content;
     }
     
-    // Add thinking content if present (for streaming thinking)
+    // Add reasoning content if present (streaming format)
     if (ollamaChunk.message?.thinking) {
         delta.reasoning_content = ollamaChunk.message.thinking;
     }
