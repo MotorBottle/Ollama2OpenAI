@@ -1,103 +1,43 @@
 # Ollama2OpenAI Gateway
 
-A powerful gateway service that converts Ollama API into OpenAI-compatible endpoints with comprehensive admin features, API key management, and advanced parameter control.
+An enhanced OpenAI-compatible gateway for Ollama with admin interface and advanced parameter control.
 
-## Features
+## 🚀 Why Use This Instead of Ollama's Built-in OpenAI Endpoint?
 
-- **OpenAI Compatible API** - Full compatibility with OpenAI's chat completions API
-- **Admin Web Interface** - Comprehensive dashboard for configuration and monitoring
-- **Multi-API Key Support** - Create and manage multiple API keys with individual permissions
-- **Model Access Control** - Fine-grained control over which models each API key can access
-- **Parameter Overrides** - Pre-configure model-specific parameters for consistent behavior
-- **Ollama Parameter Support** - Pass through Ollama-specific parameters like `num_ctx`, `think`, `num_predict`
-- **Usage Tracking** - Complete logging and analytics of API usage
-- **Model Name Mapping** - Map Ollama model names to user-friendly display names
-- **Streaming Support** - Full support for both streaming and non-streaming responses
+- **🧠 Full Thinking Model Support** - Complete `think` parameter support with reasoning content in responses (not supported by Ollama's built-in endpoint)
+- **⚙️ Advanced Parameter Control** - Set model-specific parameter overrides with full Ollama parameter support (`num_ctx`, `num_predict`, `think`, etc.)
+- **🔑 Multi-API Key Management** - Create and manage multiple API keys with per-key model access control
+- **📊 Usage Tracking & Analytics** - Comprehensive logging and monitoring of API usage
+- **🎛️ Admin Web Interface** - Easy configuration and management through a web dashboard
+- **🏷️ Model Name Mapping** - Custom display names for your models
 
-## Quick Start
-
-Choose between Docker deployment (recommended) or manual installation:
-
-### Option A: Docker Deployment (Recommended)
-
-#### With Included Ollama Service
+## Quick Start (Docker Only)
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
-cd ollama2openai
+git clone https://github.com/MotorBottle/Ollama2OpenAI.git
+cd Ollama2OpenAI
 
-# Start both Ollama and Gateway
+# Option 1: With included Ollama service
 docker-compose up -d
 
-# Pull some models (optional)
-docker exec ollama2openai-ollama ollama pull llama3.2:3b
-```
-
-#### With External Ollama Instance
-
-```bash
-# Use external Ollama configuration
+# Option 2: With external Ollama instance 
 docker-compose -f docker-compose.external.yml up -d
 ```
 
-### Option B: Manual Installation
-
-#### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-#### 2. Start Ollama
-
-Make sure Ollama is running on your system:
-```bash
-ollama serve
-```
-
-#### 3. Run the Gateway
-
-```bash
-npm start
-# OR use the startup script
-./start.sh
-```
-
-### Access Admin Interface
-
-Navigate to `http://localhost:3000` and login with:
-- **Username:** admin
+**🎯 Access Admin Interface:** `http://localhost:3000`
+- **Username:** admin  
 - **Password:** admin
 
-### Configure and Create API Keys
+**⚡ Quick Setup:**
+1. Configure Ollama URL in Settings
+2. Refresh Models to load from Ollama
+3. Create API keys with model permissions
+4. Use OpenAI-compatible endpoint: `http://localhost:3000/v1/chat/completions`
 
-1. Go to Settings and configure your Ollama URL (default: `http://localhost:11434`)
-2. Navigate to Models and refresh to load available models from Ollama
-3. Create API keys in the API Keys section
-4. Start using the OpenAI-compatible endpoint at `http://localhost:3000/v1/chat/completions`
+## 🧠 Enhanced Thinking Model Support
 
-## Configuration
-
-### Environment Variables
-
-```bash
-export PORT=3000
-export OLLAMA_URL=http://localhost:11434
-export SESSION_SECRET=your-secret-key
-```
-
-### Admin Settings
-
-Access the admin interface at `http://localhost:3000` to configure:
-
-- **Ollama URL**: The URL where your Ollama server is running
-- **Admin Password**: Change the default admin password
-- **Model Mappings**: Configure display names for your models
-
-## API Usage
-
-### Using with OpenAI SDK
+Unlike Ollama's built-in OpenAI endpoint, this gateway fully supports reasoning models:
 
 ```python
 from openai import OpenAI
@@ -107,259 +47,83 @@ client = OpenAI(
     base_url="http://localhost:3000/v1"
 )
 
+# Full thinking model support with reasoning content
 response = client.chat.completions.create(
-    model="llama3.2:3b",
-    messages=[
-        {"role": "user", "content": "Hello, how are you?"}
-    ]
+    model="deepseek-r1",
+    messages=[{"role": "user", "content": "Solve this math problem step by step"}],
+    think=True,  # Enable reasoning 
+    num_ctx=32768  # Extended context
 )
+
+# Access reasoning content (not available in Ollama's OpenAI endpoint)
+reasoning = response.choices[0].message.reasoning_content
+answer = response.choices[0].message.content
 ```
 
-### Using with curl
+## ⚙️ Advanced Parameter Control
 
-```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
-  -H "Authorization: Bearer sk-your-api-key-here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "llama3.2:3b",
-    "messages": [
-      {"role": "user", "content": "Hello!"}
-    ]
-  }'
-```
-
-### Ollama-Specific Parameters
-
-You can pass Ollama-specific parameters directly in your requests:
+Set model-specific parameter overrides in the admin interface using **Ollama format**:
 
 ```json
 {
-  "model": "llama3.2:3b",
-  "messages": [{"role": "user", "content": "Hello!"}],
-  "num_ctx": 8192,
-  "think": true,
-  "num_predict": 100,
-  "temperature": 0.7
-}
-```
-
-### Parameter Overrides
-
-Configure default parameters for specific models in the admin interface:
-
-```json
-{
-  "gpt-4": {
-    "num_ctx": 8192,
-    "temperature": 0.7
-  },
-  "qwen2.5:72b": {
+  "deepseek-r1": {
+    "think": true,
     "num_ctx": 32768,
-    "think": true
+    "temperature": 0.8
+  },
+  "llama3.2:3b": {
+    "num_ctx": 8192,
+    "num_predict": 1000
   }
 }
 ```
 
-## API Endpoints
+**Parameter Precedence:** User API params → Model overrides → System defaults
 
-### Chat Completions
-- **POST** `/v1/chat/completions` - OpenAI-compatible chat completions
-- Supports all OpenAI parameters plus Ollama-specific ones
-- Supports streaming with `"stream": true`
-
-### Models
-- **GET** `/v1/models` - List available models (filtered by API key permissions)
-
-### Admin API (requires admin authentication)
-- **GET** `/admin/stats` - Get usage statistics
-- **GET/POST** `/admin/settings` - Manage server settings
-- **GET/POST/DELETE** `/admin/api-keys` - Manage API keys
-- **GET/POST** `/admin/models` - Manage model configurations
-- **GET/POST** `/admin/overrides` - Manage parameter overrides
-- **GET** `/admin/logs` - View usage logs
-
-## Features in Detail
-
-### API Key Management
-
-Create multiple API keys with different permissions:
-- Assign specific models to each key
-- Track usage per key
-- Enable/disable keys
-- View usage statistics
-
-### Model Access Control
-
-Fine-grained control over model access:
-- Global access with `*` wildcard
-- Specific model access by name
-- Per-key model restrictions
-
-### Usage Tracking
-
-Comprehensive logging includes:
-- Request timestamps
-- API key used
-- Model requested
-- Response time
-- Token usage
-- Success/failure status
-
-### Parameter Overrides
-
-Set default parameters for specific models:
-- Context length (`num_ctx`)
-- Thinking mode (`think`)
-- Token prediction limits (`num_predict`)
-- Temperature, top_p, and other sampling parameters
-
-## Directory Structure
-
-```
-ollama2openai/
-├── server.js                 # Main server file
-├── package.json              # Dependencies and scripts
-├── config/
-│   └── config.js             # Configuration management
-├── routes/
-│   ├── admin.js              # Admin interface routes
-│   └── api.js                # OpenAI API routes
-├── views/
-│   ├── login.ejs             # Login page
-│   └── dashboard.ejs         # Admin dashboard
-├── public/
-│   └── js/
-│       └── dashboard.js      # Dashboard JavaScript
-├── data/                     # Auto-created data directory
-│   ├── config.json           # Server configuration
-│   ├── api_keys.json         # API keys storage
-│   ├── models.json           # Model configurations
-│   ├── overrides.json        # Parameter overrides
-│   └── logs.json             # Usage logs
-└── logs/
-    └── access.log            # HTTP access logs
-```
-
-## Docker Deployment
-
-### Available Docker Configurations
-
-1. **docker-compose.yml** - Includes both Ollama and Gateway services
-2. **docker-compose.external.yml** - Gateway only, connects to external Ollama
-
-### Docker Commands
+## Environment Variables
 
 ```bash
-# Build and start services
+# Create .env file for Docker
+PORT=3000
+OLLAMA_URL=http://localhost:11434  # or http://ollama:11434 for Docker
+SESSION_SECRET=your-secret-key
+```
+
+## Docker Commands
+
+```bash
+# Start/stop services
 docker-compose up -d
+docker-compose down
 
 # View logs
 docker-compose logs -f gateway
-docker-compose logs -f ollama
 
-# Stop services
-docker-compose down
-
-# Rebuild after code changes
+# Rebuild after changes  
 docker-compose up -d --build
-
-# Using external Ollama
-docker-compose -f docker-compose.external.yml up -d
 ```
 
-### Environment Variables for Docker
+## API Endpoints
 
-Create a `.env` file for Docker environment variables:
+- **POST** `/v1/chat/completions` - OpenAI-compatible with full Ollama parameter support
+- **GET** `/v1/models` - List models (filtered by API key permissions)
+- **Admin Interface** - `http://localhost:3000` for configuration and monitoring
 
-```bash
-# Gateway configuration
-PORT=3000
-OLLAMA_URL=http://ollama:11434
-SESSION_SECRET=your-secret-key
+## Key Features
 
-# If using external Ollama
-OLLAMA_URL=http://host.docker.internal:11434
-```
-
-### GPU Support (NVIDIA)
-
-Uncomment the GPU configuration in `docker-compose.yml`:
-
-```yaml
-deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          count: 1
-          capabilities: [gpu]
-```
-
-### Persistent Data
-
-Docker volumes are automatically created for:
-- Gateway configuration and logs
-- Ollama models and data
-
-## Development
-
-### Development Mode
-
-```bash
-npm run dev
-```
-
-This uses nodemon to automatically restart the server when files change.
-
-### Adding New Features
-
-The modular structure makes it easy to extend:
-
-1. **Add new admin API endpoints** in `routes/admin.js`
-2. **Extend the configuration system** in `config/config.js`
-3. **Add new OpenAI endpoints** in `routes/api.js`
-4. **Update the dashboard** in `views/dashboard.ejs` and `public/js/dashboard.js`
+✅ **Full reasoning model support** with `think` parameter and reasoning content  
+✅ **Model-specific parameter overrides** using Ollama format  
+✅ **Multi-API key management** with per-key model access control  
+✅ **Usage tracking and analytics** with comprehensive logging  
+✅ **Custom model name mapping** for user-friendly names  
+✅ **Web admin interface** for easy configuration  
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Cannot connect to Ollama**
-   - Ensure Ollama is running: `ollama serve`
-   - Check the Ollama URL in admin settings
-   - Verify Ollama is accessible at the configured URL
-
-2. **Invalid API key errors**
-   - Create API keys through the admin interface
-   - Ensure the API key format is correct (`Bearer sk-...`)
-   - Check that the API key hasn't been deleted
-
-3. **Model not found errors**
-   - Refresh models from Ollama in the admin interface
-   - Ensure the model is enabled
-   - Check API key permissions for the model
-
-4. **Permission denied errors**
-   - Verify the API key has access to the requested model
-   - Check if the model exists and is enabled
-   - Review the API key's allowed models list
-
-### Logs
-
-Check the following log files for debugging:
-- `logs/access.log` - HTTP access logs
-- Console output - Application logs and errors
-- Admin interface logs section - API usage logs
-
-## Security Considerations
-
-- Change the default admin password immediately
-- Use strong session secrets in production
-- Consider using HTTPS in production environments
-- Regularly monitor API usage logs
-- Implement rate limiting if needed for production use
+- **Cannot connect to Ollama**: Check Ollama URL in admin settings
+- **Invalid API key**: Create keys through admin interface
+- **Model not found**: Refresh models in admin interface and check API key permissions
 
 ## License
 
-MIT License - feel free to use and modify as needed.
+MIT License
