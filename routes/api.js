@@ -37,7 +37,7 @@ const validateApiKey = (req, res, next) => {
 
 // Middleware to check model access permissions
 const checkModelAccess = (req, res, next) => {
-    const requestedModel = req.body.model || req.query.model;
+    const requestedModel = (req.body.model || req.query.model)?.trim();
     if (!requestedModel) {
         return res.status(400).json({
             error: {
@@ -74,12 +74,13 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         // Update API key usage
         config.updateApiKeyUsage(req.apiKey);
         
-        // Get model mapping from display name to actual ollama model
-        const modelMapping = getModelMapping(req.requestedModel);
-        const actualModel = modelMapping || req.requestedModel;
+        // Get model mapping from display name to actual ollama model (trim whitespace)
+        const trimmedModel = req.requestedModel.trim();
+        const modelMapping = getModelMapping(trimmedModel);
+        const actualModel = (modelMapping || trimmedModel).trim();
         
         // Get parameter overrides for this model
-        const overrides = config.getModelOverrides(req.requestedModel);
+        const overrides = config.getModelOverrides(trimmedModel);
         
         // Convert OpenAI request to Ollama format
         const ollamaRequest = convertToOllamaRequest(req.body, actualModel, overrides);
@@ -103,9 +104,11 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         
         // Handle streaming response
         if (req.body.stream) {
-            res.setHeader('Content-Type', 'text/plain');
+            res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
             
             let responseContent = '';
             let thinkingContent = '';
@@ -126,7 +129,11 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                         
                         // Convert to OpenAI streaming format
                         const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel, req.reasoningPreferences);
-                        res.write(`data: ${JSON.stringify(openaiChunk)}\n\n`);
+                        
+                        // Only write chunks that have meaningful content
+                        if (openaiChunk.choices[0].delta.content || openaiChunk.choices[0].delta.reasoning_content || data.done) {
+                            res.write(`data: ${JSON.stringify(openaiChunk)}\n\n`);
+                        }
                         
                         if (data.done) {
                             res.write('data: [DONE]\n\n');
@@ -145,12 +152,21 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                 console.error('Stream error:', error);
                 logRequest(req, '', Date.now() - startTime, 'error');
                 if (!res.headersSent) {
-                    res.status(500).json({
+                    res.writeHead(500, { 'Content-Type': 'text/event-stream' });
+                    res.write(`data: ${JSON.stringify({
                         error: {
                             message: 'Stream processing error',
                             type: 'server_error'
                         }
-                    });
+                    })}\n\n`);
+                }
+                res.end();
+            });
+            
+            // Handle client disconnect
+            req.on('close', () => {
+                if (ollamaResponse.data) {
+                    ollamaResponse.data.destroy();
                 }
             });
         } else {
@@ -201,6 +217,13 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         
     } catch (error) {
         console.error('Chat completion error:', error.message);
+        console.error('Error details:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            model: req.requestedModel,
+            actualModel: getModelMapping(req.requestedModel) || req.requestedModel
+        });
         logRequest(req, '', Date.now() - startTime, 'error');
         
         if (error.response) {
