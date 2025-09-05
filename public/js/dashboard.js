@@ -247,7 +247,19 @@ function showApiKeyCreated(apiKey) {
 }
 
 function copyNewApiKey() {
-    const apiKeyValue = document.getElementById('newApiKeyValue').value;
+    const element = document.getElementById('newApiKeyValue');
+    if (!element) {
+        console.error('Could not find newApiKeyValue element');
+        showAlert('Copy failed: Element not found', 'danger');
+        return;
+    }
+    const apiKeyValue = element.value;
+    if (!apiKeyValue) {
+        console.error('API key value is empty');
+        showAlert('Copy failed: No API key value', 'danger');
+        return;
+    }
+    console.log('Copying API key from popup:', apiKeyValue.substring(0, 10) + '...');
     copyApiKey(apiKeyValue);
 }
 
