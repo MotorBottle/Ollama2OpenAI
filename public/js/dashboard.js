@@ -195,6 +195,9 @@ async function copyApiKey(apiKey) {
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
+            textArea.setSelectionRange(0, 99999); // Ensure full selection
+            
+            // Give browser time to register the selection
             const success = document.execCommand('copy');
             document.body.removeChild(textArea);
             
@@ -230,12 +233,7 @@ function showApiKeyCreated(apiKey) {
                         </div>
                         <div class="form-group">
                             <label class="form-label"><strong>Your API Key:</strong></label>
-                            <div class="input-group">
-                                <input type="text" class="form-control font-monospace" id="newApiKeyValue" value="${apiKey}" readonly>
-                                <button class="btn btn-outline-secondary" type="button" onclick="copyNewApiKey()">
-                                    <i class="fas fa-copy"></i> Copy
-                                </button>
-                            </div>
+                            <input type="text" class="form-control font-monospace" id="newApiKeyValue" value="${apiKey}" readonly>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -258,6 +256,7 @@ function showApiKeyCreated(apiKey) {
     // Show the modal
     const modal = new bootstrap.Modal(document.getElementById('newApiKeyModal'));
     modal.show();
+    
     
     // Auto-remove modal after it's hidden
     document.getElementById('newApiKeyModal').addEventListener('hidden.bs.modal', function() {
