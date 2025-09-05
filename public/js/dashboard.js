@@ -178,17 +178,35 @@ async function deleteApiKey(keyId) {
 
 async function copyApiKey(apiKey) {
     try {
-        await navigator.clipboard.writeText(apiKey);
-        showAlert('API key copied to clipboard!', 'success');
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(apiKey);
+            showAlert('API key copied to clipboard!', 'success');
+        } else {
+            throw new Error('Clipboard API not available');
+        }
     } catch (err) {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = apiKey;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        showAlert('API key copied to clipboard!', 'success');
+        // Fallback for non-secure contexts or older browsers
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = apiKey;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            if (success) {
+                showAlert('API key copied to clipboard!', 'success');
+            } else {
+                showAlert('Copy failed. Please manually select and copy the API key.', 'warning');
+            }
+        } catch (fallbackErr) {
+            console.error('Copy failed:', fallbackErr);
+            showAlert('Copy not supported. Please manually select and copy the API key.', 'warning');
+        }
     }
 }
 
@@ -213,7 +231,7 @@ function showApiKeyCreated(apiKey) {
                             <label class="form-label"><strong>Your API Key:</strong></label>
                             <div class="input-group">
                                 <input type="text" class="form-control font-monospace" id="newApiKeyValue" value="${apiKey}" readonly>
-                                <button class="btn btn-outline-secondary" type="button" onclick="copyNewApiKey()">
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey('${apiKey}')">
                                     <i class="fas fa-copy"></i> Copy
                                 </button>
                             </div>
