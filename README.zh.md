@@ -53,11 +53,11 @@ client = OpenAI(
     base_url="http://localhost:3000/v1"
 )
 
-# 完整的思考模型支持和推理内容
+# 完整的思考模型支持和推理内容，支持推理努力度控制
 response = client.chat.completions.create(
     model="deepseek-r1",
     messages=[{"role": "user", "content": "一步步解决这个数学问题"}],
-    think=True,  # 启用推理 
+    reasoning_effort="high",  # 控制推理努力度: "minimal", "low", "medium", "high"
     num_ctx=32768  # 扩展上下文
 )
 
@@ -73,7 +73,7 @@ answer = response.choices[0].message.content
 ```json
 {
   "deepseek-r1": {
-    "think": true,
+    "think": "high",
     "num_ctx": 32768,
     "temperature": 0.8
   },

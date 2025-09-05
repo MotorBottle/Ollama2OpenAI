@@ -316,11 +316,37 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
     
     // Handle thinking/reasoning parameters from user request (user params override model defaults)
     if (openaiRequest.think !== undefined) {
-        // Direct Ollama format: {"think": true/false}
+        // Direct Ollama format: {"think": true/false/"low"/"medium"/"high"}
         ollamaRequest.think = openaiRequest.think;
+    } else if (openaiRequest.reasoning_effort !== undefined) {
+        // OpenAI reasoning_effort format: "minimal", "low", "medium", "high"
+        const effort = openaiRequest.reasoning_effort;
+        if (effort === "minimal") {
+            // Minimal not supported in Ollama, use false
+            ollamaRequest.think = false;
+        } else if (["low", "medium", "high"].includes(effort)) {
+            ollamaRequest.think = effort;
+        } else {
+            ollamaRequest.think = true; // Default fallback
+        }
     } else if (openaiRequest.reasoning !== undefined) {
-        // OpenRouter/OpenAI format: check enabled/exclude logic
-        if (openaiRequest.reasoning.enabled === false) {
+        // Validate no conflicting reasoning parameters
+        const reasoning = openaiRequest.reasoning;
+        if (reasoning.enabled !== undefined && reasoning.effort !== undefined) {
+            throw new Error("Cannot specify both reasoning.enabled and reasoning.effort in the same request");
+        }
+        
+        if (reasoning.effort !== undefined) {
+            // OpenRouter reasoning.effort format
+            const effort = reasoning.effort;
+            if (effort === "minimal") {
+                ollamaRequest.think = false;
+            } else if (["low", "medium", "high"].includes(effort)) {
+                ollamaRequest.think = effort;
+            } else {
+                ollamaRequest.think = true; // Default fallback
+            }
+        } else if (reasoning.enabled === false) {
             // enabled: false → disable thinking entirely
             ollamaRequest.think = false;
         } else {

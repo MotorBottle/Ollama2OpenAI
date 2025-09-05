@@ -55,11 +55,11 @@ client = OpenAI(
     base_url="http://localhost:3000/v1"
 )
 
-# Full thinking model support with reasoning content
+# Full thinking model support with reasoning content and effort control
 response = client.chat.completions.create(
     model="deepseek-r1",
     messages=[{"role": "user", "content": "Solve this math problem step by step"}],
-    think=True,  # Enable reasoning 
+    reasoning_effort="high",  # Control reasoning effort: "minimal", "low", "medium", "high"
     num_ctx=32768  # Extended context
 )
 
@@ -75,7 +75,7 @@ Set model-specific parameter overrides in the admin interface using **Ollama for
 ```json
 {
   "deepseek-r1": {
-    "think": true,
+    "think": "high",
     "num_ctx": 32768,
     "temperature": 0.8
   },

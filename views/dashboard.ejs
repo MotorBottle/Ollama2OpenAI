@@ -208,7 +208,7 @@
                             <div class="col-md-6">
                                 <strong>Reasoning Model:</strong>
                                 <pre class="mb-2"><code>{
-  "think": true,
+  "think": "high",
   "temperature": 0.8,
   "num_ctx": 32768
 }</code></pre>
@@ -217,7 +217,7 @@
                         <small class="text-muted">
                             <strong>Important:</strong> Use <strong>Ollama parameter names only</strong>:
                             <br>• <code>num_predict</code> (not <code>max_tokens</code>), <code>num_ctx</code>, <code>temperature</code>, etc.
-                            <br>• <code>think</code> parameter controls reasoning output for thinking models
+                            <br>• <code>think</code> parameter: <code>true</code>/<code>false</code> or effort levels <code>"low"</code>/<code>"medium"</code>/<code>"high"</code>
                             <br>• These are model defaults - user API params will override these settings
                             <br><strong>Precedence:</strong> User API params → Model overrides → System defaults
                         </small>
