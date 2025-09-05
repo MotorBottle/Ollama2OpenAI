@@ -57,9 +57,11 @@ client = OpenAI(
 
 # Full thinking model support with reasoning content and effort control
 response = client.chat.completions.create(
-    model="deepseek-r1",
+    model="gpt-oss:120b",
     messages=[{"role": "user", "content": "Solve this math problem step by step"}],
-    reasoning_effort="high",  # Control reasoning effort: "minimal", "low", "medium", "high"
+    reasoning_effort="high",  # OpenAI format: "minimal", "low", "medium", "high"
+    # OR use OpenRouter format:
+    # reasoning={"effort": "high"}
     num_ctx=32768  # Extended context
 )
 

@@ -2,7 +2,35 @@
 
 **Languages:** English | [简体中文](MODEL_REASONING_SUPPORT.zh.md)
 
-This document outlines the reasoning capabilities and supported `think` parameter values for different model families when using the Ollama2OpenAI gateway.
+This document outlines the reasoning capabilities and supported parameter formats for different model families when using the Ollama2OpenAI gateway.
+
+## 🎯 Recommended Parameter Formats
+
+When making requests to the **OpenAI-compatible gateway**, use these parameter formats:
+
+### **✅ Primary (OpenAI Format)**
+```json
+{
+  "reasoning_effort": "high"
+}
+```
+
+### **✅ Alternative (OpenRouter Format)**  
+```json
+{
+  "reasoning": {
+    "effort": "high"
+  }
+}
+```
+
+### **🔧 Compatibility (Ollama Format)**
+```json
+{
+  "think": "high"
+}
+```
+*Note: `think` parameter is supported for compatibility but not recommended for new integrations.*
 
 ## Reasoning Parameter Support by Model Family
 
@@ -19,19 +47,26 @@ These models support fine-grained reasoning effort control with `"low"`, `"mediu
 - **DeepSeek-R1**: Uses automatic reasoning depth based on question complexity. No explicit effort levels found in documentation
 - **QwQ**: Has `/think` and `/no_think` soft switches for reasoning control, but no effort levels documented
 
-**Example Usage:**
+**Example Usage (OpenAI-Compatible Format):**
 ```python
-# High effort reasoning
+# High effort reasoning - OpenAI format (RECOMMENDED)
 response = client.chat.completions.create(
     model="gpt-oss:120b",
-    reasoning_effort="high",
+    reasoning_effort="high",  # Primary OpenAI format
     messages=[{"role": "user", "content": "Solve this complex problem"}]
 )
 
-# Low effort for faster responses
+# Alternative OpenRouter format
 response = client.chat.completions.create(
-    model="deepseek-r1:14b",
-    think="low",  # Direct Ollama format
+    model="gpt-oss:120b", 
+    reasoning={"effort": "high"},  # OpenRouter format
+    messages=[{"role": "user", "content": "Complex analysis"}]
+)
+
+# Compatibility format (not recommended for new code)
+response = client.chat.completions.create(
+    model="gpt-oss:120b",
+    think="high",  # Ollama compatibility format
     messages=[{"role": "user", "content": "Simple question"}]
 )
 ```

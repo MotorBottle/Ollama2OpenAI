@@ -2,7 +2,35 @@
 
 **语言版本:** [English](MODEL_REASONING_SUPPORT.md) | 简体中文
 
-本文档说明了使用 Ollama2OpenAI 网关时，不同模型家族的推理能力和支持的 `think` 参数值。
+本文档说明了使用 Ollama2OpenAI 网关时，不同模型家族的推理能力和支持的参数格式。
+
+## 🎯 推荐的参数格式
+
+向 **OpenAI 兼容网关**发送请求时，请使用以下参数格式：
+
+### **✅ 主要格式（OpenAI 格式）**
+```json
+{
+  "reasoning_effort": "high"
+}
+```
+
+### **✅ 替代格式（OpenRouter 格式）**  
+```json
+{
+  "reasoning": {
+    "effort": "high"
+  }
+}
+```
+
+### **🔧 兼容格式（Ollama 格式）**
+```json
+{
+  "think": "high"
+}
+```
+*注意：支持 `think` 参数是为了兼容性，但不建议在新集成中使用。*
 
 ## 按模型家族分类的推理参数支持
 
@@ -19,19 +47,26 @@
 - **DeepSeek-R1**: 根据问题复杂度自动调整推理深度，文档中未发现明确的努力级别参数
 - **QwQ**: 具有 `/think` 和 `/no_think` 软开关用于推理控制，但文档中未记录努力级别
 
-**使用示例：**
+**使用示例（OpenAI 兼容格式）：**
 ```python
-# 高努力度推理
+# 高努力度推理 - OpenAI 格式（推荐）
 response = client.chat.completions.create(
     model="gpt-oss:120b",
-    reasoning_effort="high",
+    reasoning_effort="high",  # 主要 OpenAI 格式
     messages=[{"role": "user", "content": "解决这个复杂问题"}]
 )
 
-# 低努力度，更快响应
+# 替代 OpenRouter 格式
 response = client.chat.completions.create(
-    model="deepseek-r1:14b",
-    think="low",  # 直接使用 Ollama 格式
+    model="gpt-oss:120b", 
+    reasoning={"effort": "high"},  # OpenRouter 格式
+    messages=[{"role": "user", "content": "复杂分析"}]
+)
+
+# 兼容格式（不建议在新代码中使用）
+response = client.chat.completions.create(
+    model="gpt-oss:120b",
+    think="high",  # Ollama 兼容格式
     messages=[{"role": "user", "content": "简单问题"}]
 )
 ```

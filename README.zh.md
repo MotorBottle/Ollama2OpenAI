@@ -55,9 +55,11 @@ client = OpenAI(
 
 # 完整的思考模型支持和推理内容，支持推理努力度控制
 response = client.chat.completions.create(
-    model="deepseek-r1",
+    model="gpt-oss:120b",
     messages=[{"role": "user", "content": "一步步解决这个数学问题"}],
-    reasoning_effort="high",  # 控制推理努力度: "minimal", "low", "medium", "high"
+    reasoning_effort="high",  # OpenAI 格式: "minimal", "low", "medium", "high"
+    # 或使用 OpenRouter 格式:
+    # reasoning={"effort": "high"}
     num_ctx=32768  # 扩展上下文
 )
 
