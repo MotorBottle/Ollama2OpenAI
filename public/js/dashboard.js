@@ -211,6 +211,7 @@ async function copyApiKey(apiKey) {
 }
 
 function showApiKeyCreated(apiKey) {
+    console.log('showApiKeyCreated called with:', apiKey);
     // Create a modal dynamically to show the new API key
     const modalHtml = `
         <div class="modal fade" id="newApiKeyModal" tabindex="-1" aria-labelledby="newApiKeyModalLabel" aria-hidden="true">
@@ -231,7 +232,7 @@ function showApiKeyCreated(apiKey) {
                             <label class="form-label"><strong>Your API Key:</strong></label>
                             <div class="input-group">
                                 <input type="text" class="form-control font-monospace" id="newApiKeyValue" value="${apiKey}" readonly>
-                                <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey('${apiKey}')">
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyNewApiKey()">
                                     <i class="fas fa-copy"></i> Copy
                                 </button>
                             </div>
@@ -278,6 +279,12 @@ function copyNewApiKey() {
         return;
     }
     console.log('Copying API key from popup:', apiKeyValue.substring(0, 10) + '...');
+    
+    // First try to select the text for easy manual copying
+    element.select();
+    element.setSelectionRange(0, 99999); // For mobile devices
+    
+    // Then try to copy programmatically
     copyApiKey(apiKeyValue);
 }
 
