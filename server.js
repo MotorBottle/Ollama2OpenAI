@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const config = require('./config/config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -74,6 +75,8 @@ app.listen(PORT, () => {
     console.log(`Ollama2OpenAI gateway server running on port ${PORT}`);
     console.log(`Admin interface: http://localhost:${PORT}`);
     console.log(`OpenAI API endpoint: http://localhost:${PORT}/v1/chat/completions`);
+    console.log('DEBUG: Server started, console.log is working');
+    console.log('DEBUG: Current ollamaUrl from config:', config.config.ollamaUrl);
 });
 
 module.exports = app;

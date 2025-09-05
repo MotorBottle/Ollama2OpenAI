@@ -56,7 +56,10 @@ class ConfigManager {
         
         // Environment variables override only if not explicitly saved via web interface
         if (process.env.OLLAMA_URL && !savedConfig.ollamaUrl) {
+            console.log('Using OLLAMA_URL from environment:', process.env.OLLAMA_URL);
             config.ollamaUrl = process.env.OLLAMA_URL;
+        } else if (savedConfig.ollamaUrl) {
+            console.log('Using saved ollamaUrl from config file:', savedConfig.ollamaUrl);
         }
         if (process.env.ADMIN_USERNAME && !savedConfig.adminUsername) {
             config.adminUsername = process.env.ADMIN_USERNAME;
@@ -88,8 +91,13 @@ class ConfigManager {
     }
 
     updateConfig(updates) {
+        console.log('updateConfig called with:', updates);
+        console.log('Current config before update:', this.config);
         this.config = { ...this.config, ...updates };
-        return this.saveConfig();
+        console.log('Config after merge:', this.config);
+        const result = this.saveConfig();
+        console.log('saveConfig returned:', result);
+        return result;
     }
 
     // API Keys management

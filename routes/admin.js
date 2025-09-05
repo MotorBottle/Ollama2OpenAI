@@ -70,6 +70,7 @@ router.get('/admin/stats', requireAuth, async (req, res) => {
 
 // Settings endpoints
 router.get('/admin/settings', requireAuth, (req, res) => {
+    console.log('Settings get request - current ollamaUrl:', config.config.ollamaUrl);
     res.json({
         ollamaUrl: config.config.ollamaUrl,
         adminUsername: config.config.adminUsername
@@ -77,13 +78,20 @@ router.get('/admin/settings', requireAuth, (req, res) => {
 });
 
 router.post('/admin/settings', requireAuth, (req, res) => {
+    console.log('Settings update request received:', req.body);
     const updates = {};
-    if (req.body.ollamaUrl !== undefined) updates.ollamaUrl = req.body.ollamaUrl;
+    if (req.body.ollamaUrl !== undefined) {
+        updates.ollamaUrl = req.body.ollamaUrl;
+        console.log('Setting ollamaUrl to:', req.body.ollamaUrl);
+    }
     if (req.body.adminPassword) {
         config.updateAdminPassword(req.body.adminPassword);
     }
     
+    console.log('Updates to apply:', updates);
     const success = config.updateConfig(updates);
+    console.log('Config update success:', success);
+    console.log('Current config ollamaUrl after update:', config.config.ollamaUrl);
     res.json({ success });
 });
 
