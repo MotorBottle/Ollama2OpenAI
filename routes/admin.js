@@ -58,8 +58,14 @@ router.post('/logout', (req, res) => {
 
 // API endpoints for admin interface
 // Stats endpoint
-router.get('/admin/stats', requireAuth, (req, res) => {
-    res.json(config.getStats());
+router.get('/admin/stats', requireAuth, async (req, res) => {
+    try {
+        const stats = await config.getStats();
+        res.json(stats);
+    } catch (error) {
+        console.error('Error getting stats:', error);
+        res.status(500).json({ error: 'Failed to get stats' });
+    }
 });
 
 // Settings endpoints

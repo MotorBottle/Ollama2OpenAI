@@ -290,14 +290,40 @@ class ConfigManager {
         return filteredLogs.reverse(); // Most recent first
     }
 
+    // Check Ollama connectivity
+    async checkOllamaConnection() {
+        try {
+            const response = await fetch(`${this.config.ollamaUrl}/api/tags`, {
+                method: 'GET',
+                timeout: 5000
+            });
+            
+            if (response.ok) {
+                return 'Connected';
+            } else {
+                return `Error: HTTP ${response.status}`;
+            }
+        } catch (error) {
+            if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+                return 'Disconnected';
+            } else if (error.name === 'TimeoutError') {
+                return 'Timeout';
+            } else {
+                return `Error: ${error.message}`;
+            }
+        }
+    }
+
     // Stats
-    getStats() {
+    async getStats() {
         const logs = this.loadLogs();
+        const ollamaStatus = await this.checkOllamaConnection();
+        
         return {
             totalKeys: this.apiKeys.length,
             totalModels: this.models.filter(m => m.enabled).length,
             totalRequests: logs.length,
-            ollamaStatus: 'Connected' // This would be updated by health checks
+            ollamaStatus: ollamaStatus
         };
     }
 
