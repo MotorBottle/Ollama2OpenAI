@@ -207,7 +207,7 @@ function showApiKeyCreated(apiKey) {
                     <div class="modal-body">
                         <div class="alert alert-warning">
                             <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Important:</strong> This is the only time you'll see the full API key. Make sure to copy and save it now.
+                            <strong>Important:</strong> Please copy and store your API key securely. Keep it confidential and do not share it.
                         </div>
                         <div class="form-group">
                             <label class="form-label"><strong>Your API Key:</strong></label>
