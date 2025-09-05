@@ -11,8 +11,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_URL=${OLLAMA_URL}
       - SESSION_SECRET=${SESSION_SECRET:-ollama2openai-docker-secret}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
     volumes:
       # Persistent data storage
       - gateway_data:/usr/src/app/data
