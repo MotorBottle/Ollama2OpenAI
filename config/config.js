@@ -41,26 +41,27 @@ class ConfigManager {
 
     loadConfig() {
         let config = this.getDefaultConfig();
+        let savedConfig = {};
         
         // Load saved config if it exists
         try {
             if (fs.existsSync(CONFIG_FILE)) {
                 const data = fs.readFileSync(CONFIG_FILE, 'utf8');
-                const savedConfig = JSON.parse(data);
+                savedConfig = JSON.parse(data);
                 config = { ...config, ...savedConfig };
             }
         } catch (error) {
             console.error('Error loading config:', error.message);
         }
         
-        // Environment variables always override everything
-        if (process.env.OLLAMA_URL) {
+        // Environment variables override only if not explicitly saved via web interface
+        if (process.env.OLLAMA_URL && !savedConfig.ollamaUrl) {
             config.ollamaUrl = process.env.OLLAMA_URL;
         }
-        if (process.env.ADMIN_USERNAME) {
+        if (process.env.ADMIN_USERNAME && !savedConfig.adminUsername) {
             config.adminUsername = process.env.ADMIN_USERNAME;
         }
-        if (process.env.ADMIN_PASSWORD) {
+        if (process.env.ADMIN_PASSWORD && !savedConfig.adminPasswordHash) {
             config.adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);
         }
         if (process.env.PORT) {

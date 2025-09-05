@@ -78,7 +78,7 @@ router.get('/admin/settings', requireAuth, (req, res) => {
 
 router.post('/admin/settings', requireAuth, (req, res) => {
     const updates = {};
-    if (req.body.ollamaUrl) updates.ollamaUrl = req.body.ollamaUrl;
+    if (req.body.ollamaUrl !== undefined) updates.ollamaUrl = req.body.ollamaUrl;
     if (req.body.adminPassword) {
         config.updateAdminPassword(req.body.adminPassword);
     }
