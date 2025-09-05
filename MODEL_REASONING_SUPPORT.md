@@ -114,14 +114,28 @@ These models do not support reasoning parameters:
 
 ## Parameter Mapping Reference
 
-### OpenAI Format → Ollama Format
+### Gateway Mapping (All Models)
 
-| Input Parameter | Full Reasoning Models | Basic Reasoning Models | Non-Reasoning Models |
-|----------------|----------------------|------------------------|---------------------|
-| `reasoning_effort: "minimal"` | `think: false` | `think: false` | Ignored |
-| `reasoning_effort: "low"` | `think: "low"` | `think: true` | Ignored |
-| `reasoning_effort: "medium"` | `think: "medium"` | `think: true` | Ignored |
-| `reasoning_effort: "high"` | `think: "high"` | `think: true` | Ignored |
+The gateway uses a **pass-through approach** for maximum flexibility:
+
+| Input Parameter | Gateway → Ollama Mapping | Notes |
+|----------------|-------------------------|-------|
+| `reasoning_effort: "minimal"` | `think: false` | Only exception (Ollama doesn't support "minimal") |
+| `reasoning_effort: "low"` | `think: "low"` | **Passed through** - model decides compatibility |
+| `reasoning_effort: "medium"` | `think: "medium"` | **Passed through** - model decides compatibility |
+| `reasoning_effort: "high"` | `think: "high"` | **Passed through** - model decides compatibility |
+| `reasoning: {effort: "X"}` | `think: "X"` | Same mapping as above |
+| `reasoning: {enabled: true/false}` | `think: true/false` | Direct mapping |
+| `think: "X"` | `think: "X"` | Direct pass-through |
+
+### Model Behavior Examples
+
+**What happens with different models:**
+- **GPT-OSS**: All effort levels work as intended ✅
+- **Qwen3**: May treat `"high"` as `true` or return error ⚠️  
+- **DeepSeek-R1**: May ignore effort levels, use auto-depth ⚠️
+
+**Philosophy**: Gateway doesn't restrict user choices - let the model handle unsupported parameters!
 
 ### Parameter Override Examples
 

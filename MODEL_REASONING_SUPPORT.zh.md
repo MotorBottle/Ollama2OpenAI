@@ -114,14 +114,28 @@ response = client.chat.completions.create(
 
 ## 参数映射参考
 
-### OpenAI 格式 → Ollama 格式
+### 网关映射（所有模型）
 
-| 输入参数 | 完整推理模型 | 基础推理模型 | 非推理模型 |
-|---------|------------|------------|----------|
-| `reasoning_effort: "minimal"` | `think: false` | `think: false` | 忽略 |
-| `reasoning_effort: "low"` | `think: "low"` | `think: true` | 忽略 |
-| `reasoning_effort: "medium"` | `think: "medium"` | `think: true` | 忽略 |
-| `reasoning_effort: "high"` | `think: "high"` | `think: true` | 忽略 |
+网关使用**直通方式**以获得最大灵活性：
+
+| 输入参数 | 网关 → Ollama 映射 | 备注 |
+|---------|-------------------|------|
+| `reasoning_effort: "minimal"` | `think: false` | 唯一例外（Ollama 不支持 "minimal"） |
+| `reasoning_effort: "low"` | `think: "low"` | **直接传递** - 由模型决定兼容性 |
+| `reasoning_effort: "medium"` | `think: "medium"` | **直接传递** - 由模型决定兼容性 |
+| `reasoning_effort: "high"` | `think: "high"` | **直接传递** - 由模型决定兼容性 |
+| `reasoning: {effort: "X"}` | `think: "X"` | 与上述映射相同 |
+| `reasoning: {enabled: true/false}` | `think: true/false` | 直接映射 |
+| `think: "X"` | `think: "X"` | 直接透传 |
+
+### 模型行为示例
+
+**不同模型的处理方式：**
+- **GPT-OSS**: 所有努力级别按预期工作 ✅
+- **Qwen3**: 可能将 `"high"` 视为 `true` 或返回错误 ⚠️  
+- **DeepSeek-R1**: 可能忽略努力级别，使用自动深度 ⚠️
+
+**设计理念**: 网关不限制用户选择 - 让模型处理不支持的参数！
 
 ### 参数覆盖示例
 
