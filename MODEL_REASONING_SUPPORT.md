@@ -12,9 +12,12 @@ These models support fine-grained reasoning effort control with `"low"`, `"mediu
 
 | Model Family | Supported Values | Notes |
 |--------------|------------------|-------|
-| **GPT-OSS** | `"low"`, `"medium"`, `"high"` | Native support for reasoning effort levels |
-| **DeepSeek-R1** | `"low"`, `"medium"`, `"high"` | Advanced reasoning with effort control |
-| **QwQ** | `"low"`, `"medium"`, `"high"` | Question-answer reasoning model |
+| **GPT-OSS** | `"low"`, `"medium"`, `"high"` | Confirmed: Native support for reasoning effort levels |
+| **Mistral Magistral** | `"low"`, `"medium"`, `"high"` | Confirmed: Via API system prompt integration |
+
+**📋 Research Findings**:
+- **DeepSeek-R1**: Uses automatic reasoning depth based on question complexity. No explicit effort levels found in documentation
+- **QwQ**: Has `/think` and `/no_think` soft switches for reasoning control, but no effort levels documented
 
 **Example Usage:**
 ```python
@@ -33,15 +36,26 @@ response = client.chat.completions.create(
 )
 ```
 
-### ⚡ Basic Reasoning Models (True/False Only)
+### ⚡ Advanced Reasoning Models (Special Controls)
+
+These models have sophisticated reasoning but use their own parameter systems:
+
+| Model Family | Supported Values | Control Method |
+|--------------|------------------|----------------|
+| **DeepSeek-R1** | `true`, `false` | Automatic depth adjustment based on complexity |
+| **QwQ** | `true`, `false`, `/think`, `/no_think` | Soft switches in prompts for reasoning control |
+
+### 🔄 Basic Reasoning Models (True/False Only)
 
 These models support reasoning but only in binary on/off mode:
 
 | Model Family | Supported Values | Notes |
 |--------------|------------------|-------|
-| **Qwen3** | `true`, `false` | Binary reasoning control only |
-| **Llama3** | `true`, `false` | Basic thinking mode support |
-| **Mistral** | `true`, `false` | Simple reasoning on/off |
+| **Qwen3** | `true`, `false` | Confirmed: Binary reasoning control only |
+
+**📋 Research Findings**:
+- **Llama3 Base**: No native reasoning parameters. Reasoning achieved through specialized fine-tuning or system prompts
+- **Standard Mistral Models**: No built-in reasoning (only Magistral series has reasoning)
 
 **Example Usage:**
 ```python
@@ -130,8 +144,10 @@ These models do not support reasoning parameters:
 
 ### Testing Model Capabilities
 
+**⚠️ Important**: Model capabilities may vary. Always test your specific models to confirm reasoning support.
+
 ```bash
-# Test reasoning support
+# Test effort level support (try "low", "medium", "high")
 curl -X POST http://localhost:22434/v1/chat/completions \
   -H "Authorization: Bearer your-api-key" \
   -H "Content-Type: application/json" \
@@ -140,7 +156,22 @@ curl -X POST http://localhost:22434/v1/chat/completions \
     "messages": [{"role": "user", "content": "Test reasoning"}],
     "think": "high"
   }'
+
+# Test basic reasoning support (true/false)
+curl -X POST http://localhost:22434/v1/chat/completions \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-model", 
+    "messages": [{"role": "user", "content": "Test reasoning"}],
+    "think": true
+  }'
 ```
+
+**How to Interpret Results**:
+- ✅ **Success**: Model accepts parameter and provides reasoning content
+- ❌ **Error 400**: Model doesn't support that parameter format
+- ⚠️ **No reasoning content**: Model may not support reasoning even if parameter is accepted
 
 ## Version Notes
 
