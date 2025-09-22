@@ -4,6 +4,27 @@ const config = require('../config/config');
 
 const router = express.Router();
 
+// Helper function for robust NDJSON parsing
+function createNdjsonParser(onObject) {
+    let buffer = '';
+    return (chunk) => {
+        buffer += chunk.toString('utf8');
+        let idx;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, idx).trim();
+            buffer = buffer.slice(idx + 1);
+            if (!line) continue;
+            try {
+                onObject(JSON.parse(line));
+            } catch (e) {
+                // If parse fails, re-append and wait for more
+                buffer = line + '\n' + buffer;
+                break;
+            }
+        }
+    };
+}
+
 // Middleware to validate API key and check model access
 const validateApiKey = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -92,127 +113,137 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         // console.log('Ollama Request:', JSON.stringify(ollamaRequest, null, 2));
         // console.log('Original Request body:', JSON.stringify(req.body, null, 2));
         
-        // Forward request to Ollama
+        // Select appropriate response type based on streaming preference
+        const wantsStream = !!req.body.stream;
         const ollamaResponse = await axios.post(
             `${config.config.ollamaUrl}/api/chat`,
             ollamaRequest,
-            { 
+            {
                 timeout: 120000,
-                responseType: 'stream'
+                responseType: wantsStream ? 'stream' : 'json'
             }
         );
-        
-        // Handle streaming response
-        if (req.body.stream) {
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
+
+        // Handle streaming response with proper SSE format
+        if (wantsStream) {
+            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
             res.setHeader('Connection', 'keep-alive');
             res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
-            
+
+            let sentRole = false;
             let responseContent = '';
             let thinkingContent = '';
-            
-            ollamaResponse.data.on('data', (chunk) => {
-                try {
-                    const lines = chunk.toString().split('\n').filter(line => line.trim());
-                    for (const line of lines) {
-                        const data = JSON.parse(line);
-                        if (data.message) {
-                            if (data.message.content) {
-                                responseContent += data.message.content;
-                            }
-                            if (data.message.thinking) {
-                                thinkingContent += data.message.thinking;
-                            }
+            let sawToolCalls = false;
+
+            const pump = createNdjsonParser((data) => {
+                // Accumulate text
+                if (data.message) {
+                    if (data.message.content) responseContent += data.message.content;
+                    if (data.message.thinking) thinkingContent += data.message.thinking;
+                }
+
+                // OpenAI-style chunk to emit
+                const chunk = {
+                    id: `chatcmpl-${Date.now()}`,
+                    object: 'chat.completion.chunk',
+                    created: Math.floor(Date.now() / 1000),
+                    model: req.requestedModel,
+                    choices: [{ index: 0, delta: {}, finish_reason: null }]
+                };
+
+                // First role delta
+                if (!sentRole) {
+                    chunk.choices[0].delta.role = 'assistant';
+                    sentRole = true;
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                    // After the role preface, we continue to emit content/tool/think deltas below
+                    chunk.choices[0].delta = {};
+                }
+
+                // Content / thinking
+                if (data.message?.content) {
+                    chunk.choices[0].delta.content = data.message.content;
+                }
+                if (data.message?.thinking && req.reasoningPreferences?.shouldIncludeReasoning !== false) {
+                    chunk.choices[0].delta.reasoning_content = data.message.thinking;
+                }
+
+                // Tool calls (emit as a single delta; mark that we saw them)
+                if (Array.isArray(data.message?.tool_calls) && data.message.tool_calls.length) {
+                    sawToolCalls = true;
+                    chunk.choices[0].delta.tool_calls = data.message.tool_calls.map((tc, i) => ({
+                        index: i,
+                        id: `call_${Date.now()}_${i}`,
+                        type: 'function',
+                        function: {
+                            name: tc.function?.name,
+                            arguments: typeof tc.function?.arguments === 'string'
+                                ? tc.function.arguments
+                                : JSON.stringify(tc.function?.arguments ?? {})
                         }
-                        
-                        // Convert to OpenAI streaming format
-                        const openaiChunk = convertToOpenAIStreamResponse(data, req.requestedModel, req.reasoningPreferences);
-                        
-                        // Only write chunks that have meaningful content
-                        if (openaiChunk.choices[0].delta.content || openaiChunk.choices[0].delta.reasoning_content || data.done) {
-                            res.write(`data: ${JSON.stringify(openaiChunk)}\n\n`);
-                        }
-                        
-                        if (data.done) {
-                            res.write('data: [DONE]\n\n');
-                            res.end();
-                            
-                            // Log the request
-                            logRequest(req, responseContent, Date.now() - startTime, 'success');
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error processing chunk:', err);
+                    }));
+                }
+
+                // Write delta if anything meaningful
+                const d = chunk.choices[0].delta;
+                if (d.content || d.reasoning_content || d.tool_calls || d.role) {
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                }
+
+                // Finalization
+                if (data.done) {
+                    // If this turn was a tool-call turn, finish_reason should be "tool_calls";
+                    // otherwise "stop".
+                    const fin = {
+                        id: chunk.id,
+                        object: 'chat.completion.chunk',
+                        created: chunk.created,
+                        model: chunk.model,
+                        choices: [{
+                            index: 0,
+                            delta: {},
+                            finish_reason: sawToolCalls ? 'tool_calls' : 'stop'
+                        }]
+                    };
+                    res.write(`data: ${JSON.stringify(fin)}\n\n`);
+                    res.write('data: [DONE]\n\n');
+                    logRequest(req, responseContent, Date.now() - startTime, 'success');
+                    res.end();
                 }
             });
-            
-            ollamaResponse.data.on('error', (error) => {
-                console.error('Stream error:', error);
-                logRequest(req, '', Date.now() - startTime, 'error');
+
+            ollamaResponse.data.on('data', pump);
+            ollamaResponse.data.on('error', (err) => {
+                console.error('Stream error:', err);
                 if (!res.headersSent) {
-                    res.writeHead(500, { 'Content-Type': 'text/event-stream' });
-                    res.write(`data: ${JSON.stringify({
-                        error: {
-                            message: 'Stream processing error',
-                            type: 'server_error'
-                        }
-                    })}\n\n`);
+                    res.writeHead(500, { 'Content-Type': 'text/event-stream; charset=utf-8' });
+                    res.write(`data: ${JSON.stringify({ error: { message: 'Stream processing error', type: 'server_error' } })}\n\n`);
                 }
                 res.end();
+                logRequest(req, '', Date.now() - startTime, 'error');
             });
-            
-            // Handle client disconnect
+
             req.on('close', () => {
-                if (ollamaResponse.data) {
-                    ollamaResponse.data.destroy();
-                }
+                try { ollamaResponse.data?.destroy(); } catch {}
             });
         } else {
-            // Handle non-streaming response
-            let fullResponse = '';
-            let fullThinking = '';
-            let responseData = {};
-            
-            ollamaResponse.data.on('data', (chunk) => {
-                try {
-                    const lines = chunk.toString().split('\n').filter(line => line.trim());
-                    for (const line of lines) {
-                        const data = JSON.parse(line);
-                        if (data.message) {
-                            if (data.message.content) {
-                                fullResponse += data.message.content;
-                            }
-                            if (data.message.thinking) {
-                                fullThinking += data.message.thinking;
-                            }
-                        }
-                        if (data.done) {
-                            responseData = data;
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error processing response:', err);
-                }
-            });
-            
-            ollamaResponse.data.on('end', () => {
-                const openaiResponse = convertToOpenAIResponse(responseData, req.requestedModel, fullResponse, fullThinking, req.reasoningPreferences);
-                logRequest(req, fullResponse, Date.now() - startTime, 'success');
-                res.json(openaiResponse);
-            });
-            
-            ollamaResponse.data.on('error', (error) => {
-                console.error('Response error:', error);
-                logRequest(req, '', Date.now() - startTime, 'error');
-                res.status(500).json({
-                    error: {
-                        message: 'Request processing error',
-                        type: 'server_error'
-                    }
-                });
-            });
+            // With responseType:'json', Ollama already returned the final JSON object
+            const data = ollamaResponse.data;
+
+            const fullResponse = data?.message?.content || '';
+            const fullThinking = data?.message?.thinking || '';
+
+            const openaiResponse = convertToOpenAIResponse(
+                data,
+                req.requestedModel,
+                fullResponse,
+                fullThinking,
+                req.reasoningPreferences
+            );
+
+            logRequest(req, fullResponse, Date.now() - startTime, 'success');
+            res.json(openaiResponse);
         }
         
     } catch (error) {
@@ -300,14 +331,37 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
     // Separate root-level parameters from options parameters
     const { think: overrideThink, ...optionsOverrides } = overrides;
     
+    // Process messages to handle tool responses (convert OpenAI format to Ollama format if needed)
+    const messages = openaiRequest.messages.map(msg => {
+        // OpenAI sends tool responses with role: "tool"
+        // Ollama expects them with role: "tool" as well, so we can pass through
+        // But we need to ensure the format is correct
+        if (msg.role === 'tool') {
+            // OpenAI format: { role: "tool", content: "result", tool_call_id: "call_123" }
+            // Ollama expects similar format, so pass through
+            return msg;
+        }
+        return msg;
+    });
+
     const ollamaRequest = {
         model: model,
-        messages: openaiRequest.messages,
+        messages: messages,
         stream: openaiRequest.stream || false,
         options: {
             ...optionsOverrides // Start with options overrides as base
         }
     };
+
+    // Pass through tools if provided (both OpenAI format and Ollama format are the same)
+    if (openaiRequest.tools) {
+        ollamaRequest.tools = openaiRequest.tools;
+    }
+
+    // Pass through tool_choice if provided
+    if (openaiRequest.tool_choice) {
+        ollamaRequest.tool_choice = openaiRequest.tool_choice;
+    }
     
     // Apply think parameter from overrides first (if set)
     if (overrideThink !== undefined) {
@@ -388,17 +442,31 @@ function convertToOllamaRequest(openaiRequest, model, overrides) {
     return ollamaRequest;
 }
 
-function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking, reasoningPreferences = {}) {
-    const message = {
-        role: 'assistant',
-        content: content
-    };
-    
-    // Add thinking content if present and not excluded by user preferences
+function convertToOpenAIResponse(ollamaFinal, modelName, content, thinking, reasoningPreferences = {}) {
+    const message = { role: 'assistant', content: content || '' };
+
     if (thinking && thinking.trim() && reasoningPreferences.shouldIncludeReasoning !== false) {
         message.reasoning_content = thinking;
     }
-    
+
+    if (Array.isArray(ollamaFinal?.message?.tool_calls) && ollamaFinal.message.tool_calls.length) {
+        message.tool_calls = ollamaFinal.message.tool_calls.map((tc, i) => ({
+            id: `call_${Date.now()}_${i}`,
+            type: 'function',
+            function: {
+                name: tc.function?.name,
+                arguments: typeof tc.function?.arguments === 'string'
+                    ? tc.function.arguments
+                    : JSON.stringify(tc.function?.arguments ?? {})
+            }
+        }));
+        // OpenAI often sets content to null in tool-call turns
+        if (!content) message.content = null;
+    }
+
+    const promptTokens = Number(ollamaFinal?.prompt_eval_count) || 0;
+    const completionTokens = Number(ollamaFinal?.eval_count) || 0;
+
     return {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -406,56 +474,17 @@ function convertToOpenAIResponse(ollamaResponse, modelName, content, thinking, r
         model: modelName,
         choices: [{
             index: 0,
-            message: message,
-            finish_reason: ollamaResponse.done ? 'stop' : null
+            message,
+            finish_reason: message.tool_calls ? 'tool_calls' : 'stop'
         }],
         usage: {
-            prompt_tokens: ollamaResponse.prompt_eval_count || 0,
-            completion_tokens: ollamaResponse.eval_count || 0,
-            total_tokens: (ollamaResponse.prompt_eval_count || 0) + (ollamaResponse.eval_count || 0)
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: promptTokens + completionTokens
         }
     };
 }
 
-function convertToOpenAIStreamResponse(ollamaChunk, modelName, reasoningPreferences = {}) {
-    if (ollamaChunk.done) {
-        return {
-            id: `chatcmpl-${Date.now()}`,
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: modelName,
-            choices: [{
-                index: 0,
-                delta: {},
-                finish_reason: 'stop'
-            }]
-        };
-    }
-    
-    const delta = {};
-    
-    // Add content if present
-    if (ollamaChunk.message?.content) {
-        delta.content = ollamaChunk.message.content;
-    }
-    
-    // Add reasoning content if present and not excluded by user preferences
-    if (ollamaChunk.message?.thinking && reasoningPreferences.shouldIncludeReasoning !== false) {
-        delta.reasoning_content = ollamaChunk.message.thinking;
-    }
-    
-    return {
-        id: `chatcmpl-${Date.now()}`,
-        object: 'chat.completion.chunk',
-        created: Math.floor(Date.now() / 1000),
-        model: modelName,
-        choices: [{
-            index: 0,
-            delta: delta,
-            finish_reason: null
-        }]
-    };
-}
 
 function logRequest(req, responseContent, responseTime, status) {
     config.addLog({
