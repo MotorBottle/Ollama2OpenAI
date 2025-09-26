@@ -128,6 +128,34 @@ docker-compose up -d --build
 ✅ **Custom model name mapping** for user-friendly names  
 ✅ **Web admin interface** for easy configuration  
 
+## Reasoning Models Configuration
+
+For models that support reasoning/thinking (like qwen3, deepseek-r1, etc.), you need to set `think: true` to get properly separated reasoning content:
+
+```json
+{
+  "model": "qwen3:32b",
+  "messages": [...],
+  "think": true  // Enables separated reasoning output
+}
+```
+
+### Pre-configuring Models for Reasoning
+
+You can configure models to always output separated reasoning content through the admin interface:
+
+1. Go to **Models** tab in the admin dashboard
+2. Click **Edit** on the model (e.g., qwen3)
+3. Add parameter override:
+```json
+{
+  "think": true
+}
+```
+4. Click **Save**
+
+Now all requests to this model will automatically have reasoning enabled without clients needing to specify `think: true`.
+
 ## Troubleshooting
 
 - **Cannot connect to Ollama**: Check Ollama URL in admin settings
