@@ -139,6 +139,11 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             let responseContent = '';
             let thinkingContent = '';
             let sawToolCalls = false;
+            let tokenUsage = {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0
+            };
 
             const pump = createNdjsonParser((data) => {
                 // Accumulate text
@@ -195,6 +200,17 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                     res.write(`data: ${JSON.stringify(chunk)}\n\n`);
                 }
 
+                // Collect token usage information
+                if (data.prompt_eval_count !== undefined) {
+                    tokenUsage.prompt_tokens = data.prompt_eval_count;
+                }
+                if (data.eval_count !== undefined) {
+                    tokenUsage.completion_tokens = data.eval_count;
+                }
+                if (tokenUsage.prompt_tokens && tokenUsage.completion_tokens) {
+                    tokenUsage.total_tokens = tokenUsage.prompt_tokens + tokenUsage.completion_tokens;
+                }
+
                 // Finalization
                 if (data.done) {
                     // If this turn was a tool-call turn, finish_reason should be "tool_calls";
@@ -208,11 +224,16 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                             index: 0,
                             delta: {},
                             finish_reason: sawToolCalls ? 'tool_calls' : 'stop'
-                        }]
+                        }],
+                        usage: {
+                            prompt_tokens: tokenUsage.prompt_tokens,
+                            completion_tokens: tokenUsage.completion_tokens,
+                            total_tokens: tokenUsage.total_tokens
+                        }
                     };
                     res.write(`data: ${JSON.stringify(fin)}\n\n`);
                     res.write('data: [DONE]\n\n');
-                    logRequest(req, responseContent, Date.now() - startTime, 'success');
+                    logRequestWithTokens(req, responseContent, Date.now() - startTime, 'success', tokenUsage);
                     res.end();
                 }
             });
@@ -225,7 +246,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                     res.write(`data: ${JSON.stringify({ error: { message: 'Stream processing error', type: 'server_error' } })}\n\n`);
                 }
                 res.end();
-                logRequest(req, '', Date.now() - startTime, 'error');
+                logRequestWithTokens(req, '', Date.now() - startTime, 'error', { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
             });
 
             req.on('close', () => {
@@ -246,7 +267,12 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                 req.reasoningPreferences
             );
 
-            logRequest(req, fullResponse, Date.now() - startTime, 'success');
+            const tokenUsage = {
+                prompt_tokens: Number(data?.prompt_eval_count) || 0,
+                completion_tokens: Number(data?.eval_count) || 0,
+                total_tokens: (Number(data?.prompt_eval_count) || 0) + (Number(data?.eval_count) || 0)
+            };
+            logRequestWithTokens(req, fullResponse, Date.now() - startTime, 'success', tokenUsage);
             res.json(openaiResponse);
         }
         
@@ -259,7 +285,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             model: req.requestedModel,
             actualModel: getModelMapping(req.requestedModel) || req.requestedModel
         });
-        logRequest(req, '', Date.now() - startTime, 'error');
+        logRequestWithTokens(req, '', Date.now() - startTime, 'error', { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
 
         // Enhanced OpenAI-compatible error handling
         const openaiError = createOpenAIError(error, req.requestedModel);
@@ -667,17 +693,28 @@ function createOpenAIError(error, model) {
     };
 }
 
-function logRequest(req, responseContent, responseTime, status) {
+function logRequestWithTokens(req, responseContent, responseTime, status, tokenUsage) {
     config.addLog({
         apiKeyId: req.apiKeyData.id,
         apiKeyName: req.apiKeyData.name,
         model: req.requestedModel,
-        tokens: responseContent.length,
+        tokens: tokenUsage.total_tokens || responseContent.length, // Fallback to content length if no token count
+        promptTokens: tokenUsage.prompt_tokens || 0,
+        completionTokens: tokenUsage.completion_tokens || 0,
         responseTime: responseTime,
         status: status,
         endpoint: req.path,
         userAgent: req.get('User-Agent') || '',
         ip: req.ip
+    });
+}
+
+// Legacy function for backwards compatibility
+function logRequest(req, responseContent, responseTime, status) {
+    logRequestWithTokens(req, responseContent, responseTime, status, {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: responseContent.length
     });
 }
 

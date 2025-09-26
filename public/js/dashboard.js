@@ -78,6 +78,12 @@ async function loadOverview() {
         document.getElementById('total-models').textContent = stats.totalModels || 0;
         document.getElementById('total-requests').textContent = stats.totalRequests || 0;
         document.getElementById('ollama-status').textContent = stats.ollamaStatus || 'Unknown';
+
+        // Token usage statistics
+        document.getElementById('total-tokens').textContent = formatNumber(stats.totalTokens || 0);
+        document.getElementById('prompt-tokens').textContent = formatNumber(stats.totalPromptTokens || 0);
+        document.getElementById('completion-tokens').textContent = formatNumber(stats.totalCompletionTokens || 0);
+        document.getElementById('avg-tokens').textContent = formatNumber(stats.averageTokensPerRequest || 0);
     }
 }
 
@@ -448,6 +454,8 @@ async function loadLogs() {
                 <td>${new Date(log.timestamp).toLocaleString()}</td>
                 <td>${log.apiKeyName}</td>
                 <td>${log.model}</td>
+                <td>${log.promptTokens || 'N/A'}</td>
+                <td>${log.completionTokens || 'N/A'}</td>
                 <td>${log.tokens || 'N/A'}</td>
                 <td>${log.responseTime || 'N/A'}ms</td>
                 <td>
@@ -472,6 +480,14 @@ async function filterLogs() {
 }
 
 // Utility functions
+function formatNumber(num) {
+    if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+    } else if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toString();
+}
 function showAlert(message, type = 'info') {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;

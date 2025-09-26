@@ -134,6 +134,46 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Token Usage Statistics -->
+            <div class="row mt-4">
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-coins fa-2x mb-2"></i>
+                            <h4 id="total-tokens">0</h4>
+                            <small>Total Tokens</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-arrow-right fa-2x mb-2"></i>
+                            <h4 id="prompt-tokens">0</h4>
+                            <small>Prompt Tokens</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-arrow-left fa-2x mb-2"></i>
+                            <h4 id="completion-tokens">0</h4>
+                            <small>Completion Tokens</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-calculator fa-2x mb-2"></i>
+                            <h4 id="avg-tokens">0</h4>
+                            <small>Avg. Tokens/Request</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Settings Section -->
@@ -278,7 +318,9 @@
                                     <th>Timestamp</th>
                                     <th>API Key</th>
                                     <th>Model</th>
-                                    <th>Tokens</th>
+                                    <th>Prompt Tokens</th>
+                                    <th>Completion Tokens</th>
+                                    <th>Total Tokens</th>
                                     <th>Response Time</th>
                                     <th>Status</th>
                                 </tr>

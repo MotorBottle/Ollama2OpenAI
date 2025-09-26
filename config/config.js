@@ -327,11 +327,31 @@ class ConfigManager {
     async getStats() {
         const logs = this.loadLogs();
         const ollamaStatus = await this.checkOllamaConnection();
-        
+
+        // Calculate token usage statistics
+        let totalTokens = 0;
+        let totalPromptTokens = 0;
+        let totalCompletionTokens = 0;
+        let successfulRequests = 0;
+
+        logs.forEach(log => {
+            if (log.status === 'success') {
+                successfulRequests++;
+                totalTokens += log.tokens || 0;
+                totalPromptTokens += log.promptTokens || 0;
+                totalCompletionTokens += log.completionTokens || 0;
+            }
+        });
+
         return {
             totalKeys: this.apiKeys.length,
             totalModels: this.models.filter(m => m.enabled).length,
             totalRequests: logs.length,
+            successfulRequests: successfulRequests,
+            totalTokens: totalTokens,
+            totalPromptTokens: totalPromptTokens,
+            totalCompletionTokens: totalCompletionTokens,
+            averageTokensPerRequest: successfulRequests > 0 ? Math.round(totalTokens / successfulRequests) : 0,
             ollamaStatus: ollamaStatus
         };
     }
