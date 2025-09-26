@@ -161,8 +161,8 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
                     chunk.choices[0].delta = {};
                 }
 
-                // Content / thinking
-                if (data.message?.content) {
+                // Content / thinking - handle separated reasoning and response phases
+                if (data.message && 'content' in data.message && data.message.content !== '') {
                     chunk.choices[0].delta.content = data.message.content;
                 }
                 if (data.message?.thinking && req.reasoningPreferences?.shouldIncludeReasoning !== false) {
