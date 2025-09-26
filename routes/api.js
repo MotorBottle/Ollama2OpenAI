@@ -76,7 +76,15 @@ const checkModelAccess = (req, res, next) => {
     const allowedModels = keyData.allowedModels;
 
     // Check if user has access to all models or specific model
-    if (!allowedModels.includes('*') && !allowedModels.includes(requestedModel)) {
+    // Support both clean names (minicpm-v) and :latest variants (minicpm-v:latest)
+    const hasAccess = allowedModels.includes('*') ||
+                     allowedModels.includes(requestedModel) ||
+                     // Check if user has access to the clean name when requesting :latest variant
+                     (requestedModel.endsWith(':latest') && allowedModels.includes(requestedModel.slice(0, -7))) ||
+                     // Check if user has access to the :latest variant when requesting clean name
+                     (!requestedModel.includes(':') && allowedModels.includes(requestedModel + ':latest'));
+
+    if (!hasAccess) {
         return res.status(403).json({
             error: {
                 message: `Access denied for model: ${requestedModel}`,
@@ -302,10 +310,15 @@ router.get('/models', validateApiKey, (req, res) => {
     
     // Filter models based on API key permissions
     if (!keyData.allowedModels.includes('*')) {
-        filteredModels = availableModels.filter(model => 
-            keyData.allowedModels.includes(model.displayName) || 
-            keyData.allowedModels.includes(model.originalName)
-        );
+        filteredModels = availableModels.filter(model => {
+            const allowedModels = keyData.allowedModels;
+            return allowedModels.includes(model.displayName) ||
+                   allowedModels.includes(model.originalName) ||
+                   // Allow access if user has permission for the :latest variant but model shows clean name
+                   (model.originalName.endsWith(':latest') && allowedModels.includes(model.originalName.slice(0, -7))) ||
+                   // Allow access if user has permission for clean name but checking :latest variant
+                   (allowedModels.some(allowed => allowed + ':latest' === model.originalName));
+        });
     }
     
     const openaiFormat = {
@@ -325,9 +338,21 @@ router.get('/models', validateApiKey, (req, res) => {
 });
 
 // Helper functions
-function getModelMapping(displayName) {
-    const model = config.models.find(m => m.displayName === displayName);
-    return model ? model.originalName : displayName;
+function getModelMapping(requestedName) {
+    // First try exact match with displayName
+    let model = config.models.find(m => m.displayName === requestedName);
+
+    // If no match and requested name doesn't end with :latest, try adding :latest
+    if (!model && !requestedName.includes(':')) {
+        model = config.models.find(m => m.originalName === requestedName + ':latest');
+    }
+
+    // If still no match, try exact match with originalName
+    if (!model) {
+        model = config.models.find(m => m.originalName === requestedName);
+    }
+
+    return model ? model.originalName : requestedName;
 }
 
 function extractReasoningPreferences(openaiRequest) {

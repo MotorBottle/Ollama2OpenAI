@@ -161,7 +161,12 @@ class ConfigManager {
         try {
             if (fs.existsSync(MODELS_FILE)) {
                 const data = fs.readFileSync(MODELS_FILE, 'utf8');
-                return JSON.parse(data);
+                const models = JSON.parse(data);
+                // Clean display names for existing models (migration for existing data)
+                return models.map(model => ({
+                    ...model,
+                    displayName: this.cleanModelDisplayName(model.displayName || model.originalName)
+                }));
             }
         } catch (error) {
             console.error('Error loading models:', error.message);
@@ -179,11 +184,18 @@ class ConfigManager {
         }
     }
 
+    // Helper function to clean model names for display (removes :latest tag)
+    cleanModelDisplayName(modelName) {
+        if (!modelName) return modelName;
+        // Remove :latest suffix if present (following Ollama convention)
+        return modelName.endsWith(':latest') ? modelName.slice(0, -7) : modelName;
+    }
+
     updateModels(modelsList) {
         this.models = modelsList.map(model => ({
             id: model.name || model.id,
             originalName: model.name,
-            displayName: model.display_name || model.name,
+            displayName: this.cleanModelDisplayName(model.display_name || model.name),
             enabled: true,
             size: model.size || 0,
             modified: model.modified || new Date().toISOString()
