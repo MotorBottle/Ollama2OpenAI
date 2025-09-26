@@ -32,25 +32,27 @@ const validateApiKey = (req, res, next) => {
         return res.status(401).json({
             error: {
                 message: 'You must provide a valid API key',
-                type: 'invalid_request_error',
-                code: 'invalid_api_key'
+                type: 'authentication_error',
+                param: null,
+                code: 'missing_api_key'
             }
         });
     }
-    
+
     const apiKey = authHeader.substring(7);
     const keyData = config.findApiKey(apiKey);
-    
+
     if (!keyData) {
         return res.status(401).json({
             error: {
                 message: 'Invalid API key provided',
-                type: 'invalid_request_error',
+                type: 'authentication_error',
+                param: null,
                 code: 'invalid_api_key'
             }
         });
     }
-    
+
     req.apiKeyData = keyData;
     req.apiKey = apiKey;
     next();
@@ -64,25 +66,27 @@ const checkModelAccess = (req, res, next) => {
             error: {
                 message: 'No model specified',
                 type: 'invalid_request_error',
+                param: 'model',
                 code: 'missing_model'
             }
         });
     }
-    
+
     const keyData = req.apiKeyData;
     const allowedModels = keyData.allowedModels;
-    
+
     // Check if user has access to all models or specific model
     if (!allowedModels.includes('*') && !allowedModels.includes(requestedModel)) {
         return res.status(403).json({
             error: {
                 message: `Access denied for model: ${requestedModel}`,
                 type: 'permission_error',
+                param: 'model',
                 code: 'model_access_denied'
             }
         });
     }
-    
+
     req.requestedModel = requestedModel;
     next();
 };
@@ -256,22 +260,10 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             actualModel: getModelMapping(req.requestedModel) || req.requestedModel
         });
         logRequest(req, '', Date.now() - startTime, 'error');
-        
-        if (error.response) {
-            res.status(error.response.status).json({
-                error: {
-                    message: error.response.data?.error || error.message,
-                    type: 'server_error'
-                }
-            });
-        } else {
-            res.status(500).json({
-                error: {
-                    message: 'Internal server error',
-                    type: 'server_error'
-                }
-            });
-        }
+
+        // Enhanced OpenAI-compatible error handling
+        const openaiError = createOpenAIError(error, req.requestedModel);
+        res.status(openaiError.status).json({ error: openaiError.error });
     }
 });
 
@@ -414,6 +406,11 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
     if (openaiRequest.tool_choice) {
         ollamaRequest.tool_choice = openaiRequest.tool_choice;
     }
+
+    // Handle response_format for JSON mode
+    if (openaiRequest.response_format?.type === 'json_object') {
+        ollamaRequest.format = 'json';
+    }
     
     // Apply think parameter from overrides first (if set)
     if (overrideThink !== undefined) {
@@ -537,6 +534,138 @@ function convertToOpenAIResponse(ollamaFinal, modelName, content, thinking, reas
     };
 }
 
+
+function createOpenAIError(error, model) {
+    // Handle specific error types with OpenAI-compatible error codes
+    if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        switch (status) {
+            case 400:
+                if (data?.error?.includes('model') || data?.error?.includes('not found')) {
+                    return {
+                        status: 404,
+                        error: {
+                            message: `Model '${model}' does not exist`,
+                            type: 'invalid_request_error',
+                            param: 'model',
+                            code: 'model_not_found'
+                        }
+                    };
+                }
+                return {
+                    status: 400,
+                    error: {
+                        message: data?.error || 'Bad request',
+                        type: 'invalid_request_error',
+                        param: null,
+                        code: 'invalid_request'
+                    }
+                };
+            case 401:
+                return {
+                    status: 401,
+                    error: {
+                        message: 'Unauthorized access to Ollama server',
+                        type: 'authentication_error',
+                        param: null,
+                        code: 'unauthorized'
+                    }
+                };
+            case 404:
+                if (data?.error?.includes('model') || error.message?.includes('model')) {
+                    return {
+                        status: 404,
+                        error: {
+                            message: `Model '${model}' does not exist`,
+                            type: 'invalid_request_error',
+                            param: 'model',
+                            code: 'model_not_found'
+                        }
+                    };
+                }
+                return {
+                    status: 404,
+                    error: {
+                        message: 'Ollama endpoint not found',
+                        type: 'invalid_request_error',
+                        param: null,
+                        code: 'not_found'
+                    }
+                };
+            case 429:
+                return {
+                    status: 429,
+                    error: {
+                        message: 'Rate limit exceeded',
+                        type: 'rate_limit_error',
+                        param: null,
+                        code: 'rate_limit_exceeded'
+                    }
+                };
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                return {
+                    status: 500,
+                    error: {
+                        message: 'Ollama server error',
+                        type: 'server_error',
+                        param: null,
+                        code: 'server_error'
+                    }
+                };
+            default:
+                return {
+                    status: status,
+                    error: {
+                        message: data?.error || error.message || 'Unknown error',
+                        type: 'server_error',
+                        param: null,
+                        code: 'unknown_error'
+                    }
+                };
+        }
+    }
+
+    // Handle network/connection errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        return {
+            status: 503,
+            error: {
+                message: 'Cannot connect to Ollama server',
+                type: 'service_unavailable_error',
+                param: null,
+                code: 'service_unavailable'
+            }
+        };
+    }
+
+    if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+        return {
+            status: 504,
+            error: {
+                message: 'Request timeout - Ollama server took too long to respond',
+                type: 'timeout_error',
+                param: null,
+                code: 'timeout'
+            }
+        };
+    }
+
+    // Generic error fallback
+    return {
+        status: 500,
+        error: {
+            message: error.message || 'Internal server error',
+            type: 'server_error',
+            param: null,
+            code: 'internal_error'
+        }
+    };
+}
 
 function logRequest(req, responseContent, responseTime, status) {
     config.addLog({
