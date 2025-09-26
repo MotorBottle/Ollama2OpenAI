@@ -104,7 +104,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         const overrides = config.getModelOverrides(trimmedModel);
         
         // Convert OpenAI request to Ollama format
-        const ollamaRequest = convertToOllamaRequest(req.body, actualModel, overrides);
+        const ollamaRequest = await convertToOllamaRequest(req.body, actualModel, overrides);
         
         // Store reasoning preferences for response processing
         req.reasoningPreferences = extractReasoningPreferences(req.body);
@@ -327,22 +327,74 @@ function extractReasoningPreferences(openaiRequest) {
     };
 }
 
-function convertToOllamaRequest(openaiRequest, model, overrides) {
+async function convertToOllamaRequest(openaiRequest, model, overrides) {
     // Separate root-level parameters from options parameters
     const { think: overrideThink, ...optionsOverrides } = overrides;
-    
-    // Process messages to handle tool responses (convert OpenAI format to Ollama format if needed)
-    const messages = openaiRequest.messages.map(msg => {
+
+    // Process messages to handle tool responses and image content
+    const messages = await Promise.all(openaiRequest.messages.map(async (msg) => {
         // OpenAI sends tool responses with role: "tool"
-        // Ollama expects them with role: "tool" as well, so we can pass through
-        // But we need to ensure the format is correct
         if (msg.role === 'tool') {
             // OpenAI format: { role: "tool", content: "result", tool_call_id: "call_123" }
             // Ollama expects similar format, so pass through
             return msg;
         }
+
+        // Handle content that could be string or array (with text/image parts)
+        if (Array.isArray(msg.content)) {
+            // OpenAI multimodal format with text and/or images
+            const ollamaMsg = { role: msg.role };
+            let textParts = [];
+            let images = [];
+
+            for (const part of msg.content) {
+                if (part.type === 'text') {
+                    textParts.push(part.text);
+                } else if (part.type === 'image_url') {
+                    const imageUrl = part.image_url?.url || part.image_url;
+                    // Extract base64 data or URL
+                    if (typeof imageUrl === 'string') {
+                        if (imageUrl.startsWith('data:image')) {
+                            // Extract base64 from data URL
+                            const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+                            if (base64Match) {
+                                images.push(base64Match[1]);
+                            }
+                        } else if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                            // Fetch image from URL and convert to base64
+                            try {
+                                const imageResponse = await axios.get(imageUrl, {
+                                    responseType: 'arraybuffer',
+                                    timeout: 10000,
+                                    maxContentLength: 10 * 1024 * 1024 // 10MB limit
+                                });
+                                const base64Image = Buffer.from(imageResponse.data).toString('base64');
+                                images.push(base64Image);
+                            } catch (error) {
+                                console.error('Failed to fetch image from URL:', imageUrl, error.message);
+                            }
+                        } else {
+                            // Assume it's already base64
+                            images.push(imageUrl);
+                        }
+                    }
+                }
+            }
+
+            // Combine text parts
+            ollamaMsg.content = textParts.join('\n');
+
+            // Add images array if we have any
+            if (images.length > 0) {
+                ollamaMsg.images = images;
+            }
+
+            return ollamaMsg;
+        }
+
+        // Simple string content
         return msg;
-    });
+    }));
 
     const ollamaRequest = {
         model: model,

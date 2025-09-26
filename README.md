@@ -6,6 +6,7 @@ An enhanced OpenAI-compatible gateway for Ollama with admin interface and advanc
 
 ## 🚀 Why Use This Instead of Ollama's Built-in OpenAI Endpoint?
 
+- **🖼️ Multimodal Image Support** - Full support for vision models with base64 and URL images in OpenAI format
 - **🧠 Full Thinking Model Support** - Complete `think` parameter support with reasoning content in responses (not supported by Ollama's built-in endpoint)
 - **⚙️ Advanced Parameter Control** - Set model-specific parameter overrides with full Ollama parameter support (`num_ctx`, `num_predict`, `think`, etc.)
 - **🔑 Multi-API Key Management** - Create and manage multiple API keys with per-key model access control
@@ -42,6 +43,53 @@ docker-compose -f docker-compose.external.yml up -d
 2. Refresh Models to load from Ollama
 3. Create API keys with model permissions
 4. Use OpenAI-compatible endpoint: `http://localhost:3000/v1/chat/completions`
+
+## 🖼️ Multimodal Image Support
+
+Full support for vision models with images in OpenAI format:
+
+```python
+from openai import OpenAI
+import base64
+
+client = OpenAI(
+    api_key="sk-your-api-key-here",
+    base_url="http://localhost:3000/v1"
+)
+
+# Using base64 encoded images
+with open("image.jpg", "rb") as image_file:
+    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+response = client.chat.completions.create(
+    model="llama3.2-vision:11b",  # Or any vision model
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+        ]
+    }]
+)
+
+# Also supports HTTP/HTTPS image URLs
+response = client.chat.completions.create(
+    model="llama3.2-vision:11b",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe this image"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+        ]
+    }]
+)
+```
+
+**Supported formats:**
+- ✅ Base64 encoded images (`data:image/jpeg;base64,...`)
+- ✅ HTTP/HTTPS image URLs (automatically fetched and converted)
+- ✅ Multiple images in a single message
+- ✅ Works with both streaming and non-streaming responses
 
 ## 🧠 Enhanced Thinking Model Support
 

@@ -6,6 +6,7 @@
 
 ## 🚀 为什么选择这个而不是 Ollama 内置的 OpenAI 接口？
 
+- **🖼️ 多模态图像支持** - 完全支持视觉模型，使用 OpenAI 格式的 base64 和 URL 图像
 - **🧠 完整的思考模型支持** - 完全支持 `think` 参数和响应中的推理内容（Ollama 内置端点不支持）
 - **⚙️ 高级参数控制** - 设置特定模型的参数覆盖，完全支持 Ollama 参数（`num_ctx`、`num_predict`、`think` 等）
 - **🔑 多 API 密钥管理** - 创建和管理多个 API 密钥，支持每个密钥的模型访问控制
@@ -40,6 +41,53 @@ docker-compose -f docker-compose.external.yml up -d
 2. 刷新模型以从 Ollama 加载
 3. 创建具有模型权限的 API 密钥
 4. 使用 OpenAI 兼容端点：`http://localhost:3000/v1/chat/completions`
+
+## 🖼️ 多模态图像支持
+
+完全支持视觉模型，使用 OpenAI 格式传递图像：
+
+```python
+from openai import OpenAI
+import base64
+
+client = OpenAI(
+    api_key="sk-your-api-key-here",
+    base_url="http://localhost:3000/v1"
+)
+
+# 使用 base64 编码的图像
+with open("image.jpg", "rb") as image_file:
+    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+response = client.chat.completions.create(
+    model="llama3.2-vision:11b",  # 或任何视觉模型
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "这张图片里有什么？"},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+        ]
+    }]
+)
+
+# 也支持 HTTP/HTTPS 图像 URL
+response = client.chat.completions.create(
+    model="llama3.2-vision:11b",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "描述这张图片"},
+            {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+        ]
+    }]
+)
+```
+
+**支持的格式：**
+- ✅ Base64 编码的图像（`data:image/jpeg;base64,...`）
+- ✅ HTTP/HTTPS 图像 URL（自动获取并转换）
+- ✅ 单条消息中的多张图像
+- ✅ 支持流式和非流式响应
 
 ## 🧠 增强的思考模型支持
 
