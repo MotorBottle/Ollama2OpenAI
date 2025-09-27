@@ -118,6 +118,47 @@ reasoning = response.choices[0].message.reasoning_content
 answer = response.choices[0].message.content
 ```
 
+## 🔍 Embeddings Support
+
+Full OpenAI-compatible embeddings for similarity search and vector operations:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-your-api-key-here",
+    base_url="http://localhost:3000/v1"
+)
+
+# Single text embedding
+response = client.embeddings.create(
+    model="mxbai-embed-large",  # Or any embedding model
+    input="The quick brown fox jumps over the lazy dog"
+)
+
+embedding = response.data[0].embedding
+print(f"Embedding dimensions: {len(embedding)}")
+
+# Multiple texts in one request
+response = client.embeddings.create(
+    model="mxbai-embed-large",
+    input=[
+        "Hello world",
+        "How are you today?",
+        "This is a test document"
+    ]
+)
+
+for i, embedding_obj in enumerate(response.data):
+    print(f"Text {i+1} embedding: {len(embedding_obj.embedding)} dimensions")
+```
+
+**Supported features:**
+- ✅ Single and batch text processing
+- ✅ Custom dimensions parameter (model dependent)
+- ✅ Usage token tracking
+- ✅ Full OpenAI client library compatibility
+
 ## ⚙️ Advanced Parameter Control
 
 Set model-specific parameter overrides in the admin interface using **Ollama format**:
@@ -163,7 +204,8 @@ docker-compose up -d --build
 
 ## API Endpoints
 
-- **POST** `/v1/chat/completions` - OpenAI-compatible with full Ollama parameter support
+- **POST** `/v1/chat/completions` - OpenAI-compatible chat completions with full Ollama parameter support
+- **POST** `/v1/embeddings` - OpenAI-compatible embeddings for text similarity and search
 - **GET** `/v1/models` - List models (filtered by API key permissions)
 - **Admin Interface** - `http://localhost:3000` for configuration and monitoring
 

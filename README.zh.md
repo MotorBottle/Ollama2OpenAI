@@ -116,6 +116,47 @@ reasoning = response.choices[0].message.reasoning_content
 answer = response.choices[0].message.content
 ```
 
+## 🔍 嵌入向量支持
+
+完全兼容 OpenAI 的嵌入向量，用于相似性搜索和向量操作：
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-your-api-key-here",
+    base_url="http://localhost:3000/v1"
+)
+
+# 单个文本嵌入
+response = client.embeddings.create(
+    model="mxbai-embed-large",  # 或任何嵌入模型
+    input="快速的棕色狐狸跳过懒惰的狗"
+)
+
+embedding = response.data[0].embedding
+print(f"嵌入维度: {len(embedding)}")
+
+# 一次请求多个文本
+response = client.embeddings.create(
+    model="mxbai-embed-large",
+    input=[
+        "你好世界",
+        "今天怎么样？",
+        "这是一个测试文档"
+    ]
+)
+
+for i, embedding_obj in enumerate(response.data):
+    print(f"文本 {i+1} 嵌入: {len(embedding_obj.embedding)} 维度")
+```
+
+**支持的功能：**
+- ✅ 单个和批量文本处理
+- ✅ 自定义维度参数（取决于模型）
+- ✅ 使用量令牌追踪
+- ✅ 完全兼容 OpenAI 客户端库
+
 ## ⚙️ 高级参数控制
 
 在管理界面中使用 **Ollama 格式**设置特定模型的参数覆盖：
@@ -161,7 +202,8 @@ docker-compose up -d --build
 
 ## API 端点
 
-- **POST** `/v1/chat/completions` - OpenAI 兼容，完全支持 Ollama 参数
+- **POST** `/v1/chat/completions` - OpenAI 兼容的聊天完成，完全支持 Ollama 参数
+- **POST** `/v1/embeddings` - OpenAI 兼容的嵌入向量，用于文本相似性和搜索
 - **GET** `/v1/models` - 列出模型（按 API 密钥权限过滤）
 - **管理界面** - `http://localhost:3000` 用于配置和监控
 

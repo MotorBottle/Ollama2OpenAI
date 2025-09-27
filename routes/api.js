@@ -301,6 +301,53 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
     }
 });
 
+// Embeddings endpoint - OpenAI compatible embeddings
+router.post('/embeddings', validateApiKey, checkModelAccess, async (req, res) => {
+    const startTime = Date.now();
+
+    try {
+        // Update API key usage
+        config.updateApiKeyUsage(req.apiKey);
+
+        // Get model mapping from display name to actual ollama model
+        const trimmedModel = req.requestedModel.trim();
+        const modelMapping = getModelMapping(trimmedModel);
+        const actualModel = (modelMapping || trimmedModel).trim();
+
+        // Convert OpenAI embeddings request to Ollama format
+        const ollamaRequest = convertToOllamaEmbedRequest(req.body, actualModel);
+
+        // Make request to Ollama
+        const ollamaResponse = await axios.post(
+            `${config.config.ollamaUrl}/api/embed`,
+            ollamaRequest,
+            {
+                timeout: 120000,
+                responseType: 'json'
+            }
+        );
+
+        const data = ollamaResponse.data;
+        const openaiResponse = convertToOpenAIEmbeddingResponse(data, req.requestedModel);
+
+        logRequestWithTokens(req, '', Date.now() - startTime, 'success', {
+            prompt_tokens: data.prompt_eval_count || 0,
+            completion_tokens: 0,
+            total_tokens: data.prompt_eval_count || 0
+        });
+
+        res.json(openaiResponse);
+
+    } catch (error) {
+        console.error('Embeddings error:', error.message);
+        logRequestWithTokens(req, '', Date.now() - startTime, 'error', { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
+
+        // Enhanced OpenAI-compatible error handling
+        const openaiError = createOpenAIError(error, req.requestedModel);
+        res.status(openaiError.status).json({ error: openaiError.error });
+    }
+});
+
 // Models endpoint - return available models for this API key
 router.get('/models', validateApiKey, (req, res) => {
     const keyData = req.apiKeyData;
@@ -714,6 +761,72 @@ function createOpenAIError(error, model) {
             type: 'server_error',
             param: null,
             code: 'internal_error'
+        }
+    };
+}
+
+function convertToOllamaEmbedRequest(openaiRequest, model) {
+    // Handle input validation similar to Ollama's EmbeddingsMiddleware
+    let input = openaiRequest.input;
+
+    if (input === "" || input === undefined || input === null) {
+        input = [""];
+    }
+
+    if (input === null || (Array.isArray(input) && input.length === 0)) {
+        throw new Error("invalid input");
+    }
+
+    return {
+        model: model,
+        input: input,
+        // Ollama supports dimensions parameter for some models
+        ...(openaiRequest.dimensions && { dimensions: openaiRequest.dimensions })
+    };
+}
+
+function convertToOpenAIEmbeddingResponse(ollamaResponse, modelName) {
+    // Based on Ollama's toEmbeddingList function
+    const embeddings = ollamaResponse.embeddings || ollamaResponse.embedding;
+
+    if (!embeddings) {
+        return {
+            object: "list",
+            data: [],
+            model: modelName,
+            usage: {
+                prompt_tokens: ollamaResponse.prompt_eval_count || 0,
+                total_tokens: ollamaResponse.prompt_eval_count || 0
+            }
+        };
+    }
+
+    let data = [];
+
+    // Handle both single embedding and multiple embeddings
+    if (Array.isArray(embeddings[0])) {
+        // Multiple embeddings
+        data = embeddings.map((embedding, index) => ({
+            object: "embedding",
+            embedding: embedding,
+            index: index
+        }));
+    } else {
+        // Single embedding
+        data = [{
+            object: "embedding",
+            embedding: embeddings,
+            index: 0
+        }];
+    }
+
+    return {
+        object: "list",
+        data: data,
+        model: modelName,
+        usage: {
+            prompt_tokens: ollamaResponse.prompt_eval_count || 0,
+            total_tokens: ollamaResponse.prompt_eval_count || 0
         }
     };
 }
