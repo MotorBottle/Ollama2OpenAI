@@ -300,9 +300,13 @@ async function loadModels() {
         const tbody = document.querySelector('#models-table tbody');
         tbody.innerHTML = models.map(model => {
             const overridesJson = JSON.stringify(model.parameterOverrides || {}, null, 1);
+            const isUnavailable = model.available === false;
             return `
-            <tr data-model-id="${model.id}">
-                <td>${model.originalName}</td>
+            <tr data-model-id="${model.id}" ${isUnavailable ? 'class="table-warning"' : ''}>
+                <td>
+                    ${model.originalName}
+                    ${isUnavailable ? '<span class="badge bg-warning text-dark ms-2">Unavailable</span>' : ''}
+                </td>
                 <td>
                     <input type="text" class="form-control form-control-sm model-display-name" 
                            value="${model.displayName}" 

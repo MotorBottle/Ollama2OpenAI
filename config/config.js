@@ -165,7 +165,9 @@ class ConfigManager {
                 // Clean display names for existing models (migration for existing data)
                 return models.map(model => ({
                     ...model,
-                    displayName: this.cleanModelDisplayName(model.displayName || model.originalName)
+                    displayName: this.cleanModelDisplayName(model.displayName || model.originalName),
+                    // Set available to true for models without this field (backwards compatibility)
+                    available: model.available !== undefined ? model.available : true
                 }));
             }
         } catch (error) {
@@ -191,20 +193,70 @@ class ConfigManager {
         return modelName.endsWith(':latest') ? modelName.slice(0, -7) : modelName;
     }
 
-    updateModels(modelsList) {
-        this.models = modelsList.map(model => ({
-            id: model.name || model.id,
-            originalName: model.name,
-            displayName: this.cleanModelDisplayName(model.display_name || model.name),
-            enabled: true,
-            size: model.size || 0,
-            modified: model.modified || new Date().toISOString()
-        }));
+    updateModels(modelsList, preserveRemovedModels = true) {
+        // Create a map of existing models with their settings
+        const existingModelsMap = {};
+        this.models.forEach(model => {
+            existingModelsMap[model.originalName] = model;
+        });
+
+        // Create a set of current model names from Ollama
+        const currentModelNames = new Set(modelsList.map(m => m.name || m.id));
+
+        // Update models while preserving existing settings
+        const updatedModels = modelsList.map(model => {
+            const modelName = model.name || model.id;
+            const existingModel = existingModelsMap[modelName];
+
+            // If model already exists, preserve its settings
+            if (existingModel) {
+                // Mark as still available
+                delete existingModelsMap[modelName];
+
+                return {
+                    ...existingModel,
+                    // Update only the fields that come from Ollama
+                    size: model.size || 0,
+                    modified: model.modified || new Date().toISOString(),
+                    available: true
+                    // Preserve: displayName, enabled, parameterOverrides
+                };
+            }
+
+            // New model - create with defaults
+            return {
+                id: modelName,
+                originalName: model.name,
+                displayName: this.cleanModelDisplayName(model.display_name || model.name),
+                enabled: true,
+                size: model.size || 0,
+                modified: model.modified || new Date().toISOString(),
+                available: true
+            };
+        });
+
+        // Handle removed models (models that exist in our config but not in Ollama)
+        if (preserveRemovedModels) {
+            // Keep removed models but mark them as unavailable
+            Object.values(existingModelsMap).forEach(removedModel => {
+                if (removedModel.parameterOverrides || removedModel.displayName !== this.cleanModelDisplayName(removedModel.originalName)) {
+                    // Keep models with custom settings
+                    updatedModels.push({
+                        ...removedModel,
+                        available: false
+                    });
+                }
+                // Models without any custom settings are removed
+            });
+        }
+
+        this.models = updatedModels;
         return this.saveModels();
     }
 
     getEnabledModels() {
-        return this.models.filter(model => model.enabled);
+        // Only return models that are both enabled AND available
+        return this.models.filter(model => model.enabled && model.available !== false);
     }
 
     updateModel(modelId, updates) {
