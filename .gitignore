@@ -14,6 +14,7 @@ yarn-error.log*
 # Data directory (contains sensitive data)
 data/
 logs/
+ref/
 
 # Operating System
 .DS_Store

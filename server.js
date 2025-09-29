@@ -52,12 +52,16 @@ app.set('views', path.join(__dirname, 'views'));
 // Routes
 const adminRoutes = require('./routes/admin');
 const apiRoutes = require('./routes/api');
+const anthropicRoutes = require('./routes/anthropic');
 
 // Admin interface routes
 app.use('/', adminRoutes);
 
 // OpenAI compatible API routes
 app.use('/v1', apiRoutes);
+
+// Anthropic compatible API routes
+app.use('/anthropic/v1', anthropicRoutes);
 
 // 404 handler
 app.use((req, res) => {
