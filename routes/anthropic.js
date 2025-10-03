@@ -95,7 +95,7 @@ const checkModelAccess = (req, res, next) => {
     next();
 };
 
-router.post('/messages', validateApiKey, checkModelAccess, async (req, res) => {
+router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
     const startTime = Date.now();
 
     if (!Array.isArray(req.body?.messages)) {
@@ -333,6 +333,7 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
         }
 
         if (data.done) {
+            clearInterval(heartbeatTimer);
             if (thinkingBlockOpen) {
                 closeThinkingBlock();
             }
@@ -385,6 +386,7 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
 
     ollamaStream.on('data', parser);
     ollamaStream.on('error', (err) => {
+        clearInterval(heartbeatTimer);
         console.error('Anthropic stream error:', err);
         if (!res.headersSent) {
             res.writeHead(500, { 'Content-Type': 'text/event-stream; charset=utf-8' });
@@ -405,6 +407,7 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
     });
 
     req.on('close', () => {
+        clearInterval(heartbeatTimer);
         try { ollamaStream?.destroy(); } catch (error) {}
     });
 }
@@ -870,6 +873,8 @@ function logRequestWithTokens(req, responseContent, responseTime, status, tokenU
         return;
     }
 
+    const endpointPath = `${req.baseUrl || ''}${req.path || ''}` || req.originalUrl || '';
+
     config.addLog({
         apiKeyId: req.apiKeyData.id,
         apiKeyName: req.apiKeyData.name,
@@ -879,7 +884,7 @@ function logRequestWithTokens(req, responseContent, responseTime, status, tokenU
         completionTokens: tokenUsage.completion_tokens || 0,
         responseTime: responseTime,
         status: status,
-        endpoint: req.path,
+        endpoint: endpointPath,
         userAgent: req.get('User-Agent') || '',
         ip: req.ip
     });

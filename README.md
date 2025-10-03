@@ -168,7 +168,8 @@ Set model-specific parameter overrides in the admin interface using **Ollama for
   "deepseek-r1": {
     "think": "high",
     "num_ctx": 32768,
-    "temperature": 0.8
+    "temperature": 0.8,
+    "request_timeout": 600000
   },
   "llama3.2:3b": {
     "num_ctx": 8192,
@@ -178,6 +179,24 @@ Set model-specific parameter overrides in the admin interface using **Ollama for
 ```
 
 **Parameter Precedence:** User API params → Model overrides → System defaults
+
+### Parameter Overrides Examples (Ollama Format)
+
+Add overrides in the admin UI (`Models` tab) using standard JSON:
+
+```json
+{
+  "qwen3-coder": {
+    "num_ctx": 163840,
+    "request_timeout": 99999999,
+    "think": true
+  }
+}
+```
+
+- `request_timeout` / `timeout_ms` are in milliseconds. Set a high value to prevent long reasoning generations from hitting the default 120 s Axios timeout.
+- `num_ctx` expands the context window for repositories or long chats.
+- Any Ollama `parameter` (temperature, top_p, etc.) can be expressed here and is merged into the request automatically.
 
 ## Environment Variables
 
@@ -206,13 +225,38 @@ docker-compose up -d --build
 
 - **POST** `/v1/chat/completions` - OpenAI-compatible chat completions with full Ollama parameter support
 - **POST** `/v1/embeddings` - OpenAI-compatible embeddings for text similarity and search
+- **POST** `/v1/messages` - Anthropic-compatible Messages API with thinking/tool streaming (legacy `/anthropic/v1/messages` still supported)
 - **GET** `/v1/models` - List models (filtered by API key permissions)
 - **Admin Interface** - `http://localhost:3000` for configuration and monitoring
+
+## 🤖 Anthropic-Compatible API
+
+Use the Anthropic Messages endpoint to serve Claude-style clients directly from Ollama:
+
+```bash
+curl http://localhost:3000/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Anthropic-Version: 2023-06-01" \
+  -d '{
+    "model": "qwen3-coder",
+    "messages": [{"role": "user", "content": "Explain async/await in Python"}],
+    "stream": true,
+    "think": true
+  }'
+```
+
+**Highlights:**
+- Streams `thinking_delta`, `signature_delta`, `text_delta`, and tool blocks according to the latest Anthropic spec
+- Automatically maps Ollama tool calls to `tool_use` content blocks
+- Supports `think`/reasoning controls and per-model overrides (context, timeouts, etc.)
+- Works with Anthropic SDKs—specify the `Anthropic-Version` header or accept the default `2023-06-01`
 
 ## Key Features
 
 ✅ **Full reasoning model support** with `think` parameter and reasoning content  
 ✅ **Model-specific parameter overrides** using Ollama format  
+✅ **Anthropic Messages endpoint** with full thinking/tool streaming  
 ✅ **Multi-API key management** with per-key model access control  
 ✅ **Usage tracking and analytics** with comprehensive logging  
 ✅ **Custom model name mapping** for user-friendly names  

@@ -57,11 +57,11 @@ const anthropicRoutes = require('./routes/anthropic');
 // Admin interface routes
 app.use('/', adminRoutes);
 
+// Anthropic compatible API routes (supports /v1/messages and legacy /anthropic/v1/messages)
+app.use(['/v1/messages', '/anthropic/v1/messages'], anthropicRoutes);
+
 // OpenAI compatible API routes
 app.use('/v1', apiRoutes);
-
-// Anthropic compatible API routes
-app.use('/anthropic/v1', anthropicRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -79,6 +79,7 @@ app.listen(PORT, () => {
     console.log(`Ollama2OpenAI gateway server running on port ${PORT}`);
     console.log(`Admin interface: http://localhost:${PORT}`);
     console.log(`OpenAI API endpoint: http://localhost:${PORT}/v1/chat/completions`);
+    console.log(`Anthropic API endpoint: http://localhost:${PORT}/v1/messages`);
     console.log('DEBUG: Server started, console.log is working');
     console.log('DEBUG: Current ollamaUrl from config:', config.config.ollamaUrl);
 });
