@@ -9,8 +9,8 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-3000}
       - OLLAMA_URL=${OLLAMA_URL}
       - SESSION_SECRET=${SESSION_SECRET:-ollama2openai-docker-secret}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
