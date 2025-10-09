@@ -119,7 +119,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         const ollamaRequest = await convertToOllamaRequest(req.body, actualModel, overrides);
         
         // Store reasoning preferences for response processing
-        req.reasoningPreferences = extractReasoningPreferences(req.body);
+        req.reasoningPreferences = extractReasoningPreferences(req.body, overrides);
         
         // Debug: Log the final request being sent to Ollama (remove in production)
         // console.log('Ollama Request:', JSON.stringify(ollamaRequest, null, 2));
@@ -402,24 +402,63 @@ function getModelMapping(requestedName) {
     return model ? model.originalName : requestedName;
 }
 
-function extractReasoningPreferences(openaiRequest) {
+function parseBoolean(value) {
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(normalized)) {
+            return true;
+        }
+        if (['false', '0', 'no', 'off'].includes(normalized)) {
+            return false;
+        }
+    }
+    return Boolean(value);
+}
+
+function extractReasoningPreferences(openaiRequest, overrides = {}) {
+    const overrideExclude = parseBoolean(overrides.exclude_reasoning);
+
     if (openaiRequest.reasoning !== undefined) {
         return {
             hasReasoningRequest: true,
-            shouldIncludeReasoning: openaiRequest.reasoning.exclude !== true, // Only exclude if explicitly set to true
+            shouldIncludeReasoning: openaiRequest.reasoning.exclude !== true,
             effort: openaiRequest.reasoning.effort || 'medium'
         };
     }
+
+    const requestExclude = parseBoolean(openaiRequest.exclude_reasoning);
+    if (requestExclude !== undefined) {
+        return {
+            hasReasoningRequest: true,
+            shouldIncludeReasoning: !requestExclude,
+            effort: 'medium'
+        };
+    }
+
+    if (overrideExclude !== undefined) {
+        return {
+            hasReasoningRequest: false,
+            shouldIncludeReasoning: !overrideExclude,
+            effort: 'medium'
+        };
+    }
+
     return {
         hasReasoningRequest: false,
-        shouldIncludeReasoning: true, // Default to include if think: true is used
+        shouldIncludeReasoning: true,
         effort: 'medium'
     };
 }
 
 async function convertToOllamaRequest(openaiRequest, model, overrides) {
     // Separate root-level parameters from options parameters
-    const { think: overrideThink, ...optionsOverrides } = overrides;
+    const { think: overrideThink, exclude_reasoning: _excludeReasoningOverride, ...optionsOverrides } = overrides || {};
 
     // Process messages to handle tool responses and image content
     const messages = await Promise.all(openaiRequest.messages.map(async (msg) => {

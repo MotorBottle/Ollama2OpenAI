@@ -26,6 +26,15 @@ The gateway accepts OpenAI-compatible requests and converts them to Ollama's nat
 | `num_ctx` | `options.num_ctx` | Context window size |
 | `num_predict` | `options.num_predict` | Max tokens to predict (overrides `max_tokens`) |
 
+### Gateway-Specific Overrides
+
+These values are not native Ollama parameters but can be configured per model in the admin panel to control gateway behavior.
+
+| Override | Location | Description |
+|----------|----------|-------------|
+| `request_timeout` / `timeout_ms` | Root override | Maximum request time (ms) before the gateway aborts the Ollama call. Set to `0` for no timeout. |
+| `exclude_reasoning` | Root override | When `true`, reasoning/thinking content is captured but omitted from client responses unless explicitly re-enabled. |
+
 ## Reasoning/Thinking Parameter Mapping
 
 The gateway supports multiple reasoning formats for compatibility with different AI platforms.
@@ -70,6 +79,18 @@ The gateway supports multiple reasoning formats for compatibility with different
 - `enabled: true` → `think: true` + include `reasoning_content` in response
 - `enabled: false` → `think: false` (disable thinking entirely)
 
+#### 4. Root-Level Toggles (Gateway Extensions)
+```json
+{
+  "think": true,
+  "exclude_reasoning": true   // Hide reasoning content in the response
+}
+```
+
+**Mapping**:
+- `exclude_reasoning: true` → keep `think: true` but suppress `reasoning_content`
+- These flags are evaluated after model overrides so requests can opt back in with `reasoning.exclude: false`
+
 ### Reasoning Logic Summary
 
 | Input | Ollama `think` | Response `reasoning_content` | Description |
@@ -81,6 +102,15 @@ The gateway supports multiple reasoning formats for compatibility with different
 | `{"reasoning": {"exclude": false}}` | `true` | ✅ Included | OpenRouter format - include |
 | `{"reasoning": {"exclude": true}}` | `true` | ❌ Excluded | OpenRouter format - exclude |
 | `{"reasoning": {"exclude": true, "enabled": true}}` | `true` | ❌ Excluded | Exclude takes precedence |
+| _Override_: `exclude_reasoning: true` | depends on request | ❌ Excluded by default | Model-level override hides reasoning until request opts in |
+
+## Tool / Function Mapping
+
+The gateway normalises tool definitions so both OpenAI and Anthropic clients can invoke Ollama functions without additional wiring.
+
+- **OpenAI format (`/v1/chat/completions`)**: The `tools` array and optional `tool_choice` are forwarded directly to Ollama. Tool call deltas returned by Ollama are converted into OpenAI `tool_calls` structures with JSON-stringified arguments.
+- **Anthropic format (`/v1/messages`)**: Incoming `tools` are translated to OpenAI-style definitions under the hood. Streaming responses emit `tool_use` blocks, and JSON responses include tool calls inside the `content` array. Inputs are parsed back into objects before being sent downstream.
+- **Tool results**: Return execution output as `role: "tool"` messages (OpenAI) or `content` parts of type `tool_result` (Anthropic) so the gateway can relay them consistently.
 
 ## Response Format Mapping
 
@@ -156,9 +186,11 @@ In the admin interface, you can set model-specific defaults:
     "num_ctx": 8192,
     "temperature": 0.7
   },
-  "qwen2.5:72b": {
-    "num_ctx": 32768,
-    "think": true
+  "qwen3-coder": {
+    "num_ctx": 163840,
+    "think": true,
+    "exclude_reasoning": true,
+    "request_timeout": 120000
   }
 }
 ```
@@ -197,7 +229,8 @@ These will be applied unless overridden by user parameters in the request.
 {
   "model": "deepseek-r1",
   "messages": [{"role": "user", "content": "Count to 5"}],
-  "reasoning": {"exclude": true},
+  "think": true,
+  "exclude_reasoning": true,
   "num_ctx": 4096
 }
 ```
@@ -216,6 +249,8 @@ These will be applied unless overridden by user parameters in the request.
 ```
 
 **Response:** Will include thinking generation internally, but `reasoning_content` field will be excluded from the response.
+
+> Tip: `reasoning: { "exclude": true }` remains supported for compatibility. `exclude_reasoning` is a gateway-specific flag that maps to the same behaviour.
 
 ### Example 3: Disable Reasoning Entirely
 ```json
@@ -247,4 +282,6 @@ These will be applied unless overridden by user parameters in the request.
 
 4. **Parameter Validation**: The gateway validates and logs all parameter conversions. Check the logs if parameters don't seem to take effect.
 
-5. **Environment Variables**: Configuration settings can be overridden by environment variables (see main README.md for details).
+5. **Default Visibility**: Set `exclude_reasoning: true` in a model override to hide reasoning globally while allowing individual requests to re-enable it with `reasoning.exclude: false`.
+
+6. **Environment Variables**: Configuration settings can be overridden by environment variables (see main README.md for details).

@@ -123,6 +123,7 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
 
         const ollamaRequest = await convertAnthropicToOllamaRequest(req.body, actualModel, overrides);
         const wantsStream = req.body.stream === true || req.body.stream === 'true';
+        const reasoningPreferences = extractAnthropicReasoningPreferences(req.body, overrides);
 
         const requestTimeout = resolveRequestTimeout({
             wantsStream,
@@ -145,7 +146,8 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
                 res,
                 ollamaStream: ollamaResponse.data,
                 startTime,
-                requestedModel: req.requestedModel
+                requestedModel: req.requestedModel,
+                reasoningPreferences
             });
         } else {
             const data = ollamaResponse.data;
@@ -158,7 +160,8 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
                 req.requestedModel,
                 responseContent,
                 thinkingContent,
-                toolCalls
+                toolCalls,
+                reasoningPreferences
             );
 
             const tokenUsage = {
@@ -191,12 +194,13 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
     }
 });
 
-function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, requestedModel }) {
+function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, requestedModel, reasoningPreferences }) {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
 
+    const includeThinking = reasoningPreferences?.includeThinking !== false;
     const messageId = `msg_${Date.now()}`;
     const sendEvent = (event, payload) => {
         res.write(`event: ${event}\n`);
@@ -227,6 +231,9 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
     let textBlockStarted = false;
 
     const ensureThinkingBlock = () => {
+        if (!includeThinking) {
+            return;
+        }
         if (!thinkingBlockStarted) {
             thinkingBlockIndex = nextContentIndex++;
             sendEvent('content_block_start', {
@@ -294,7 +301,7 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
             }
         }
 
-        if (data.message?.thinking) {
+        if (includeThinking && data.message?.thinking) {
             thinkingContent += data.message.thinking;
             if (data.message.thinking) {
                 ensureThinkingBlock();
@@ -309,7 +316,7 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
             }
         }
 
-        if (data.message?.signature) {
+        if (includeThinking && data.message?.signature) {
             ensureThinkingBlock();
             sendEvent('content_block_delta', {
                 type: 'content_block_delta',
@@ -413,7 +420,7 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
 }
 
 async function convertAnthropicToOllamaRequest(anthropicRequest, model, overrides) {
-    const { think: overrideThink, ...rawOverrides } = overrides || {};
+    const { think: overrideThink, exclude_reasoning: _excludeReasoningOverride, ...rawOverrides } = overrides || {};
     const {
         timeout,
         timeout_ms,
@@ -772,6 +779,63 @@ function extractAnthropicThinkingPreference(request) {
     return undefined;
 }
 
+function parseBoolean(value) {
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (['true', '1', 'yes', 'on'].includes(normalized)) {
+            return true;
+        }
+        if (['false', '0', 'no', 'off'].includes(normalized)) {
+            return false;
+        }
+    }
+    return Boolean(value);
+}
+
+function extractAnthropicReasoningPreferences(request, overrides = {}) {
+    const overrideExclude = parseBoolean(overrides?.exclude_reasoning);
+    let include = overrideExclude !== undefined ? !overrideExclude : undefined;
+
+    if (include === undefined) {
+        include = true;
+    }
+
+    const rootExclude = parseBoolean(request?.exclude_reasoning);
+    if (rootExclude !== undefined) {
+        include = !rootExclude;
+    }
+
+    const metadataExclude = parseBoolean(request?.metadata?.exclude_reasoning);
+    if (metadataExclude !== undefined) {
+        include = !metadataExclude;
+    }
+
+    const metadataHide = parseBoolean(request?.metadata?.hide_reasoning);
+    if (metadataHide !== undefined) {
+        include = !metadataHide;
+    }
+
+    const bodyExclude = parseBoolean(request?.extra_body?.exclude_reasoning);
+    if (bodyExclude !== undefined) {
+        include = !bodyExclude;
+    }
+
+    const bodyHide = parseBoolean(request?.extra_body?.hide_reasoning);
+    if (bodyHide !== undefined) {
+        include = !bodyHide;
+    }
+
+    return {
+        includeThinking: include
+    };
+}
+
 function mapThinkingValue(value) {
     if (typeof value === 'boolean') {
         return value;
@@ -790,7 +854,8 @@ function mapThinkingValue(value) {
     return undefined;
 }
 
-function convertOllamaToAnthropicResponse(ollamaFinal, modelName, content, thinking, toolCalls) {
+function convertOllamaToAnthropicResponse(ollamaFinal, modelName, content, thinking, toolCalls, reasoningPreferences) {
+    const includeThinking = reasoningPreferences?.includeThinking !== false;
     const promptTokens = Number(ollamaFinal?.prompt_eval_count) || 0;
     const completionTokens = Number(ollamaFinal?.eval_count) || 0;
 
@@ -809,7 +874,7 @@ function convertOllamaToAnthropicResponse(ollamaFinal, modelName, content, think
         });
     }
 
-    if (thinking && thinking.trim()) {
+    if (includeThinking && thinking && thinking.trim()) {
         contentBlocks.unshift({
             type: 'thinking',
             thinking: thinking

@@ -167,14 +167,21 @@ for i, embedding_obj in enumerate(response.data):
     "num_ctx": 32768,
     "temperature": 0.8
   },
-  "llama3.2:3b": {
-    "num_ctx": 8192,
-    "num_predict": 1000
+  "qwen3-coder": {
+    "num_ctx": 163840,
+    "request_timeout": 99999999,
+    "exclude_reasoning": true,
+    "think": true
   }
 }
 ```
 
 **参数优先级：** 用户 API 参数 → 模型覆盖 → 系统默认值
+
+- `request_timeout` / `timeout_ms` 以毫秒为单位，可避免长推理请求因为默认 120 s 超时而被中断。
+- `exclude_reasoning` 设为 `true` 时默认隐藏推理内容，调用方可通过请求参数重新开启。
+- `num_ctx` 扩展上下文窗口，适用于长文本或代码库场景。
+- 其他 Ollama `parameter`（temperature、top_p 等）也可以在此处声明，网关会自动合并。
 
 ## 环境变量
 
@@ -314,6 +321,8 @@ print(tool_call.function.name, tool_call.function.arguments)
   "think": true  // 启用分离的推理输出
 }
 ```
+
+如果希望模型继续思考但默认隐藏推理内容，可在请求中加入 `"exclude_reasoning": true`，或在模型覆盖中同样设置 `"exclude_reasoning": true`，这样客户端只会收到最终答案而不会看到 `reasoning_content`。
 
 ### 预配置模型推理功能
 

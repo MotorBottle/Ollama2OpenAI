@@ -188,12 +188,14 @@ Add overrides in the admin UI (`Models` tab) using standard JSON:
   "qwen3-coder": {
     "num_ctx": 163840,
     "request_timeout": 99999999,
+    "exclude_reasoning": true,
     "think": true
   }
 }
 ```
 
 - `request_timeout` / `timeout_ms` are in milliseconds. Set a high value to prevent long reasoning generations from hitting the default 120 s Axios timeout.
+- `exclude_reasoning` hides reasoning content by default while still letting callers opt back in via request parameters.
 - `num_ctx` expands the context window for repositories or long chats.
 - Any Ollama `parameter` (temperature, top_p, etc.) can be expressed here and is merged into the request automatically.
 
@@ -336,6 +338,8 @@ For models that support reasoning/thinking (like qwen3, deepseek-r1, etc.), you 
   "think": true  // Enables separated reasoning output
 }
 ```
+
+Need the model to think but keep the reasoning hidden? Add `"exclude_reasoning": true` in a request (or set `"exclude_reasoning": true` in the model overrides) and clients will receive the final answer without the `reasoning_content` field.
 
 ### Pre-configuring Models for Reasoning
 
