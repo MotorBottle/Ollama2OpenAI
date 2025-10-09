@@ -263,6 +263,8 @@
                             <strong>Important:</strong> Use <strong>Ollama parameter names only</strong>:
                             <br>• <code>num_predict</code> (not <code>max_tokens</code>), <code>num_ctx</code>, <code>temperature</code>, etc.
                             <br>• <code>think</code> parameter: <code>true</code>/<code>false</code> or effort levels <code>"low"</code>/<code>"medium"</code>/<code>"high"</code>
+                            <br>• Set <code>exclude_reasoning</code> to <code>true</code> in override panel or request if you want to hide reasoning content;
+                            <br>• <code>request_timeout</code> / <code>timeout_ms</code>: override Ollama call timeout in milliseconds (use <code>0</code> = no timeout)
                             <br>• These are model defaults - user API params will override these settings
                             <br><strong>Precedence:</strong> User API params → Model overrides → System defaults
                         </small>
