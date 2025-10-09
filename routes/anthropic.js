@@ -121,6 +121,22 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
         const actualModel = (modelMapping || trimmedModel).trim();
         const overrides = config.getModelOverrides(trimmedModel);
 
+        const modelExists = config.models.some(m =>
+            m.originalName === actualModel ||
+            m.displayName === trimmedModel
+        );
+        if (!modelExists) {
+            return res.status(404).json({
+                type: 'error',
+                error: {
+                    type: 'invalid_request_error',
+                    message: `Model '${req.requestedModel}' does not exist`,
+                    param: 'model',
+                    code: 'model_not_found'
+                }
+            });
+        }
+
         const ollamaRequest = await convertAnthropicToOllamaRequest(req.body, actualModel, overrides);
         const wantsStream = req.body.stream === true || req.body.stream === 'true';
         const reasoningPreferences = extractAnthropicReasoningPreferences(req.body, overrides);

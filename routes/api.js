@@ -111,10 +111,25 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         const trimmedModel = req.requestedModel.trim();
         const modelMapping = getModelMapping(trimmedModel);
         const actualModel = (modelMapping || trimmedModel).trim();
-        
+
         // Get parameter overrides for this model
         const overrides = config.getModelOverrides(trimmedModel);
-        
+
+        const modelExists = config.models.some(m =>
+            m.originalName === actualModel ||
+            m.displayName === trimmedModel
+        );
+        if (!modelExists) {
+            return res.status(404).json({
+                error: {
+                    message: `Model '${req.requestedModel}' does not exist`,
+                    type: 'invalid_request_error',
+                    param: 'model',
+                    code: 'model_not_found'
+                }
+            });
+        }
+
         // Convert OpenAI request to Ollama format
         const ollamaRequest = await convertToOllamaRequest(req.body, actualModel, overrides);
         
