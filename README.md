@@ -27,12 +27,11 @@ An enhanced OpenAI-compatible gateway for Ollama with admin interface and advanc
 git clone https://github.com/MotorBottle/Ollama2OpenAI.git
 cd Ollama2OpenAI
 
-# Option 1: With included Ollama service
-docker-compose up -d
-
-# Option 2: With external Ollama instance 
-docker-compose -f docker-compose.external.yml up -d
+# Start the gateway (ensure OLLAMA_URL points at your Ollama host)
+docker compose up -d
 ```
+
+> The compose file only starts the gateway container. Configure `OLLAMA_URL` via environment or `.env` so it can reach your existing Ollama instance. Stop the stack with `docker compose down` when finished.
 
 **🎯 Access Admin Interface:** `http://localhost:3000`
 - **Username:** admin  
@@ -211,14 +210,14 @@ SESSION_SECRET=your-secret-key
 
 ```bash
 # Start/stop services
-docker-compose up -d
-docker-compose down
+docker compose up -d
+docker compose down
 
 # View logs
-docker-compose logs -f gateway
+docker compose logs -f gateway
 
 # Rebuild after changes  
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ## API Endpoints
@@ -248,15 +247,18 @@ curl http://localhost:3000/v1/messages \
 
 **Highlights:**
 - Streams `thinking_delta`, `signature_delta`, `text_delta`, and tool blocks according to the latest Anthropic spec
-- Automatically maps Ollama tool calls to `tool_use` content blocks
+- Automatically maps Ollama tool calls to `tool_use` content blocks and forwards tool call inputs back to your client
 - Supports `think`/reasoning controls and per-model overrides (context, timeouts, etc.)
 - Works with Anthropic SDKs—specify the `Anthropic-Version` header or accept the default `2023-06-01`
+
+Provide tools in the Anthropic request (`tools` array) and the gateway will expose them to Ollama. When Ollama decides on a tool, the response streams back as Anthropic `tool_use` blocks with properly parsed JSON arguments, ready to execute in your application.
 
 ## Key Features
 
 ✅ **Full reasoning model support** with `think` parameter and reasoning content  
 ✅ **Model-specific parameter overrides** using Ollama format  
 ✅ **Anthropic Messages endpoint** with full thinking/tool streaming  
+✅ **Bi-directional tool call support** for both Anthropic and OpenAI-compatible clients  
 ✅ **Multi-API key management** with per-key model access control  
 ✅ **Usage tracking and analytics** with comprehensive logging  
 ✅ **Custom model name mapping** for user-friendly names  

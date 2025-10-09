@@ -25,12 +25,11 @@
 git clone https://github.com/MotorBottle/Ollama2OpenAI.git
 cd Ollama2OpenAI
 
-# 选项1：包含 Ollama 服务
-docker-compose up -d
-
-# 选项2：使用外部 Ollama 实例
-docker-compose -f docker-compose.external.yml up -d
+# 启动网关（确保 OLLAMA_URL 指向你的 Ollama 实例）
+docker compose up -d
 ```
+
+> 该 compose 文件仅启动网关容器。请通过环境变量或 `.env` 配置 `OLLAMA_URL` 以连接现有的 Ollama 实例，完成后可使用 `docker compose down` 停止。
 
 **🎯 访问管理界面：** `http://localhost:3000`
 - **用户名：** admin  
@@ -190,14 +189,14 @@ SESSION_SECRET=your-secret-key
 
 ```bash
 # 启动/停止服务
-docker-compose up -d
-docker-compose down
+docker compose up -d
+docker compose down
 
 # 查看日志
-docker-compose logs -f gateway
+docker compose logs -f gateway
 
 # 更改后重新构建  
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ## API 端点
