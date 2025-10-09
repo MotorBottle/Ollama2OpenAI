@@ -253,6 +253,67 @@ curl http://localhost:3000/v1/messages \
 
 Provide tools in the Anthropic request (`tools` array) and the gateway will expose them to Ollama. When Ollama decides on a tool, the response streams back as Anthropic `tool_use` blocks with properly parsed JSON arguments, ready to execute in your application.
 
+On the OpenAI side, keep using the standard `tools` / `tool_calls` fields in `/v1/chat/completions`. The gateway forwards those definitions to Ollama and converts the model's function calls back into OpenAI-compatible tool call payloads automatically.
+
+**Anthropic request with tools**
+
+```bash
+curl http://localhost:3000/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "model": "qwen3-coder",
+    "messages": [{"role": "user", "content": "查一下旧金山的天气"}],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"]
+          }
+        }
+      }
+    ]
+  }'
+```
+
+When the model invokes a tool you’ll receive a streamed block such as:
+
+```json
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01...","name":"get_weather","input":{"city":"旧金山"}}}
+```
+
+**OpenAI-compatible example (Python)**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(api_key="YOUR_KEY", base_url="http://localhost:3000/v1")
+
+response = client.chat.completions.create(
+    model="qwen3-coder",
+    messages=[{"role": "user", "content": "Call the lookup tool for Paris"}],
+    tools=[{
+        "type": "function",
+        "function": {
+            "name": "lookup_city",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"]
+            }
+        }
+    }]
+)
+
+tool_call = response.choices[0].message.tool_calls[0]
+print(tool_call.function.name, tool_call.function.arguments)
+```
+
 ## Key Features
 
 ✅ **Full reasoning model support** with `think` parameter and reasoning content  

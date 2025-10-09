@@ -203,13 +203,101 @@ docker compose up -d --build
 
 - **POST** `/v1/chat/completions` - OpenAI 兼容的聊天完成，完全支持 Ollama 参数
 - **POST** `/v1/embeddings` - OpenAI 兼容的嵌入向量，用于文本相似性和搜索
+- **POST** `/v1/messages` - Anthropic 兼容的 Messages API，支持思维流和工具调用（兼容历史路径 `/anthropic/v1/messages`）
 - **GET** `/v1/models` - 列出模型（按 API 密钥权限过滤）
 - **管理界面** - `http://localhost:3000` 用于配置和监控
+
+## 🤖 Anthropic 兼容 API
+
+使用 `/v1/messages` 将 Claude 生态客户端直接接入 Ollama：
+
+```bash
+curl http://localhost:3000/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Anthropic-Version: 2023-06-01" \
+  -d '{
+    "model": "qwen3-coder",
+    "messages": [{"role": "user", "content": "解释一下 Python 中的 async/await"}],
+    "stream": true,
+    "think": true
+  }'
+```
+
+**特性亮点：**
+- 按最新规范实时推送 `thinking_delta`、`signature_delta`、`text_delta` 与工具块
+- 自动把 Ollama 的工具调用转换为 Anthropic 的 `tool_use` 内容块，并将函数入参回传给客户端
+- 支持 `think` / 推理强度控制，以及模型层面的上下文、超时等覆盖设置
+- 可直接配合 Anthropic 官方 SDK 使用，未提供版本号时默认返回 `2023-06-01`
+
+在请求体中提供 `tools` 数组即可把工具能力暴露给 Ollama；当模型选择调用工具时，响应会以连续的 `tool_use` 块形式返回，JSON 入参已解析，无需手动处理。
+
+对于 OpenAI 端点 `/v1/chat/completions`，照常传入标准的 `tools` / `tool_calls` 字段即可。网关会把定义转发给 Ollama，并自动将模型返回的函数调用转换为 OpenAI 兼容的工具调用格式。
+
+**Anthropic 工具调用示例**
+
+```bash
+curl http://localhost:3000/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "model": "qwen3-coder",
+    "messages": [{"role": "user", "content": "查询一下上海的天气"}],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "parameters": {
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"]
+          }
+        }
+      }
+    ]
+  }'
+```
+
+当模型决定调用工具时，会收到类似的流式事件：
+
+```json
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01...","name":"get_weather","input":{"city":"上海"}}}
+```
+
+**OpenAI 兼容示例（Python）**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(api_key="YOUR_KEY", base_url="http://localhost:3000/v1")
+
+response = client.chat.completions.create(
+    model="qwen3-coder",
+    messages=[{"role": "user", "content": "请调用 lookup_city 工具查询北京"}],
+    tools=[{
+        "type": "function",
+        "function": {
+            "name": "lookup_city",
+            "parameters": {
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"]
+            }
+        }
+    }]
+)
+
+tool_call = response.choices[0].message.tool_calls[0]
+print(tool_call.function.name, tool_call.function.arguments)
+```
 
 ## 主要功能
 
 ✅ **完整的推理模型支持**，支持 `think` 参数和推理内容  
 ✅ **特定模型参数覆盖**，使用 Ollama 格式  
+✅ **双向工具调用支持**，兼容 Anthropic 与 OpenAI 两种格式  
 ✅ **多 API 密钥管理**，支持每个密钥的模型访问控制  
 ✅ **使用追踪和分析**，全面日志记录  
 ✅ **自定义模型名称映射**，用户友好的名称  
