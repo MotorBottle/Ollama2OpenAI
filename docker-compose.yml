@@ -1,8 +1,5 @@
-# Docker Compose configuration for using external Ollama instance
-version: '3.8'
-
 services:
-  # Ollama2OpenAI Gateway (using external Ollama)
+  # Ollama2OpenAI Gateway
   gateway:
     build: .
     container_name: ollama2openai-gateway
@@ -10,7 +7,7 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - PORT=${PORT:-3000}
+      - PORT=3000
       - OLLAMA_URL=${OLLAMA_URL}
       - SESSION_SECRET=${SESSION_SECRET:-ollama2openai-docker-secret}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
@@ -20,7 +17,6 @@ services:
       - gateway_data:/usr/src/app/data
       - gateway_logs:/usr/src/app/logs
     restart: unless-stopped
-    network_mode: bridge
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (res) => { const ok = res.statusCode >= 200 && res.statusCode < 400; process.exit(ok ? 0 : 1); }).on('error', () => process.exit(1));"]
       interval: 30s
