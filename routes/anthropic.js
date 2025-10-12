@@ -138,6 +138,14 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
         }
 
         const ollamaRequest = await convertAnthropicToOllamaRequest(req.body, actualModel, overrides);
+
+        const keepAlive = resolveKeepAlive({
+            anthropicRequest: req.body,
+            overrides
+        });
+        if (keepAlive !== undefined) {
+            ollamaRequest.keep_alive = keepAlive;
+        }
         const wantsStream = req.body.stream === true || req.body.stream === 'true';
         const reasoningPreferences = extractAnthropicReasoningPreferences(req.body, overrides);
 
@@ -436,7 +444,13 @@ function handleStreamingAnthropicResponse({ req, res, ollamaStream, startTime, r
 }
 
 async function convertAnthropicToOllamaRequest(anthropicRequest, model, overrides) {
-    const { think: overrideThink, exclude_reasoning: _excludeReasoningOverride, ...rawOverrides } = overrides || {};
+    const {
+        think: overrideThink,
+        exclude_reasoning: _excludeReasoningOverride,
+        keep_alive: _overrideKeepAlive,
+        keepAlive: _overrideKeepAliveCamel,
+        ...rawOverrides
+    } = overrides || {};
     const {
         timeout,
         timeout_ms,
@@ -613,11 +627,6 @@ async function convertAnthropicMessage(message) {
 
 function resolveRequestTimeout({ wantsStream, overrides, anthropicRequest }) {
     const candidateTimeouts = [
-        overrides && overrides.timeout,
-        overrides && overrides.timeout_ms,
-        overrides && overrides.timeoutMs,
-        overrides && overrides.request_timeout,
-        overrides && overrides.requestTimeout,
         anthropicRequest?.timeout_ms,
         anthropicRequest?.timeoutMs,
         anthropicRequest?.timeout,
@@ -633,6 +642,11 @@ function resolveRequestTimeout({ wantsStream, overrides, anthropicRequest }) {
         anthropicRequest?.extra_body?.timeout,
         anthropicRequest?.extra_body?.request_timeout,
         anthropicRequest?.extra_body?.requestTimeout,
+        overrides && overrides.timeout,
+        overrides && overrides.timeout_ms,
+        overrides && overrides.timeoutMs,
+        overrides && overrides.request_timeout,
+        overrides && overrides.requestTimeout,
         config.config?.requestTimeout
     ];
 
@@ -644,6 +658,38 @@ function resolveRequestTimeout({ wantsStream, overrides, anthropicRequest }) {
     }
 
     return 0;
+}
+
+
+function resolveKeepAlive({ anthropicRequest, overrides }) {
+    const candidateValues = [
+        anthropicRequest?.keep_alive,
+        anthropicRequest?.keepAlive,
+        anthropicRequest?.metadata?.keep_alive,
+        anthropicRequest?.metadata?.keepAlive,
+        anthropicRequest?.extra_body?.keep_alive,
+        anthropicRequest?.extra_body?.keepAlive,
+        overrides?.keep_alive,
+        overrides?.keepAlive
+    ];
+
+    for (const value of candidateValues) {
+        if (value === undefined || value === null) {
+            continue;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed === '') {
+                continue;
+            }
+            return trimmed;
+        }
+
+        return value;
+    }
+
+    return undefined;
 }
 
 function normalizeTimeoutValue(value) {

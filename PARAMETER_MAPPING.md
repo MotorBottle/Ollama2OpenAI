@@ -25,6 +25,7 @@ The gateway accepts OpenAI-compatible requests and converts them to Ollama's nat
 |-----------|----------|-------------|
 | `num_ctx` | `options.num_ctx` | Context window size |
 | `num_predict` | `options.num_predict` | Max tokens to predict (overrides `max_tokens`) |
+| `keep_alive` | Root level | Keep the Ollama model in memory after the request (supports numeric milliseconds or duration strings) |
 
 ### Gateway-Specific Overrides
 

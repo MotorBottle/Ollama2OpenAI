@@ -132,6 +132,14 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
 
         // Convert OpenAI request to Ollama format
         const ollamaRequest = await convertToOllamaRequest(req.body, actualModel, overrides);
+
+        const keepAlive = resolveKeepAlive({
+            openaiRequest: req.body,
+            overrides
+        });
+        if (keepAlive !== undefined) {
+            ollamaRequest.keep_alive = keepAlive;
+        }
         
         // Store reasoning preferences for response processing
         req.reasoningPreferences = extractReasoningPreferences(req.body, overrides);
@@ -340,6 +348,14 @@ router.post('/embeddings', validateApiKey, checkModelAccess, async (req, res) =>
         // Convert OpenAI embeddings request to Ollama format
         const ollamaRequest = convertToOllamaEmbedRequest(req.body, actualModel);
 
+        const keepAlive = resolveKeepAlive({
+            openaiRequest: req.body,
+            overrides
+        });
+        if (keepAlive !== undefined) {
+            ollamaRequest.keep_alive = keepAlive;
+        }
+
         const requestTimeout = resolveOpenAIRequestTimeout({
             openaiRequest: req.body,
             overrides
@@ -486,7 +502,13 @@ function extractReasoningPreferences(openaiRequest, overrides = {}) {
 
 async function convertToOllamaRequest(openaiRequest, model, overrides) {
     // Separate root-level parameters from options parameters
-    const { think: overrideThink, exclude_reasoning: _excludeReasoningOverride, ...optionsOverrides } = overrides || {};
+    const {
+        think: overrideThink,
+        exclude_reasoning: _excludeReasoningOverride,
+        keep_alive: _overrideKeepAlive,
+        keepAlive: _overrideKeepAliveCamel,
+        ...optionsOverrides
+    } = overrides || {};
 
     // Process messages to handle tool responses and image content
     const messages = await Promise.all(openaiRequest.messages.map(async (msg) => {
@@ -686,6 +708,37 @@ function resolveOpenAIRequestTimeout({ openaiRequest, overrides }) {
         if (normalized !== undefined) {
             return normalized;
         }
+    }
+
+    return undefined;
+}
+
+function resolveKeepAlive({ openaiRequest, overrides }) {
+    const candidateValues = [
+        openaiRequest?.keep_alive,
+        openaiRequest?.keepAlive,
+        openaiRequest?.metadata?.keep_alive,
+        openaiRequest?.metadata?.keepAlive,
+        openaiRequest?.extra_body?.keep_alive,
+        openaiRequest?.extra_body?.keepAlive,
+        overrides?.keep_alive,
+        overrides?.keepAlive
+    ];
+
+    for (const value of candidateValues) {
+        if (value === undefined || value === null) {
+            continue;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed === '') {
+                continue;
+            }
+            return trimmed;
+        }
+
+        return value;
     }
 
     return undefined;
