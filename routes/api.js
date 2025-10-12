@@ -142,11 +142,16 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         
         // Select appropriate response type based on streaming preference
         const wantsStream = !!req.body.stream;
+        const requestTimeout = resolveOpenAIRequestTimeout({
+            openaiRequest: req.body,
+            overrides
+        });
+
         const ollamaResponse = await axios.post(
             `${config.config.ollamaUrl}/api/chat`,
             ollamaRequest,
             {
-                timeout: 120000,
+                timeout: requestTimeout !== undefined ? requestTimeout : 120000,
                 responseType: wantsStream ? 'stream' : 'json'
             }
         );
@@ -329,15 +334,23 @@ router.post('/embeddings', validateApiKey, checkModelAccess, async (req, res) =>
         const modelMapping = getModelMapping(trimmedModel);
         const actualModel = (modelMapping || trimmedModel).trim();
 
+        // Get parameter overrides for this model
+        const overrides = config.getModelOverrides(trimmedModel);
+
         // Convert OpenAI embeddings request to Ollama format
         const ollamaRequest = convertToOllamaEmbedRequest(req.body, actualModel);
+
+        const requestTimeout = resolveOpenAIRequestTimeout({
+            openaiRequest: req.body,
+            overrides
+        });
 
         // Make request to Ollama
         const ollamaResponse = await axios.post(
             `${config.config.ollamaUrl}/api/embed`,
             ollamaRequest,
             {
-                timeout: 120000,
+                timeout: requestTimeout !== undefined ? requestTimeout : 120000,
                 responseType: 'json'
             }
         );
@@ -641,6 +654,58 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
     }
     
     return ollamaRequest;
+}
+
+function resolveOpenAIRequestTimeout({ openaiRequest, overrides }) {
+    const candidateTimeouts = [
+        openaiRequest?.timeout,
+        openaiRequest?.timeout_ms,
+        openaiRequest?.timeoutMs,
+        openaiRequest?.request_timeout,
+        openaiRequest?.requestTimeout,
+        openaiRequest?.metadata?.timeout,
+        openaiRequest?.metadata?.timeout_ms,
+        openaiRequest?.metadata?.timeoutMs,
+        openaiRequest?.metadata?.request_timeout,
+        openaiRequest?.metadata?.requestTimeout,
+        openaiRequest?.extra_body?.timeout,
+        openaiRequest?.extra_body?.timeout_ms,
+        openaiRequest?.extra_body?.timeoutMs,
+        openaiRequest?.extra_body?.request_timeout,
+        openaiRequest?.extra_body?.requestTimeout,
+        overrides?.timeout,
+        overrides?.timeout_ms,
+        overrides?.timeoutMs,
+        overrides?.request_timeout,
+        overrides?.requestTimeout,
+        config.config?.requestTimeout
+    ];
+
+    for (const value of candidateTimeouts) {
+        const normalized = normalizeTimeoutValue(value);
+        if (normalized !== undefined) {
+            return normalized;
+        }
+    }
+
+    return undefined;
+}
+
+function normalizeTimeoutValue(value) {
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return undefined;
+    }
+
+    if (numeric <= 0) {
+        return 0;
+    }
+
+    return numeric;
 }
 
 function convertToOpenAIResponse(ollamaFinal, modelName, content, thinking, reasoningPreferences = {}) {
