@@ -27,6 +27,8 @@ The gateway accepts OpenAI-compatible requests and converts them to Ollama's nat
 | `num_predict` | `options.num_predict` | Max tokens to predict (overrides `max_tokens`) |
 | `keep_alive` | Root level | Keep the Ollama model in memory after the request (supports numeric milliseconds or duration strings) |
 
+Any additional OpenAI/Anthropic parameters placed inside an `options` object (for example `{"options": {"mirostat": 2}}`) are passed straight through to Ollama. If the current model does not support a given option, Ollama simply ignores it.
+
 ### Gateway-Specific Overrides
 
 These values are not native Ollama parameters but can be configured per model in the admin panel to control gateway behavior.

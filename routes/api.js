@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config/config');
+const { warnUnknownOptions } = require('../utils/options-warning');
 
 const router = express.Router();
 
@@ -510,6 +511,19 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
         ...optionsOverrides
     } = overrides || {};
 
+    warnUnknownOptions(optionsOverrides, 'model override options', {
+        model,
+        route: 'openai/chat'
+    });
+    warnUnknownOptions(openaiRequest.options, 'OpenAI request.options', {
+        model,
+        route: 'openai/chat'
+    });
+    warnUnknownOptions(openaiRequest.extra_body?.options, 'OpenAI request.extra_body.options', {
+        model,
+        route: 'openai/chat'
+    });
+
     // Process messages to handle tool responses and image content
     const messages = await Promise.all(openaiRequest.messages.map(async (msg) => {
         // OpenAI sends tool responses with role: "tool"
@@ -575,13 +589,18 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
         return msg;
     }));
 
+    const optionsPayload = {
+        ...optionsOverrides
+    };
+
+    mergePlainObject(optionsPayload, openaiRequest.extra_body?.options);
+    mergePlainObject(optionsPayload, openaiRequest.options);
+
     const ollamaRequest = {
         model: model,
         messages: messages,
         stream: openaiRequest.stream || false,
-        options: {
-            ...optionsOverrides // Start with options overrides as base
-        }
+        options: optionsPayload
     };
 
     // Pass through tools if provided (both OpenAI format and Ollama format are the same)
@@ -742,6 +761,16 @@ function resolveKeepAlive({ openaiRequest, overrides }) {
     }
 
     return undefined;
+}
+
+function mergePlainObject(target, source) {
+    if (!target || !source) {
+        return;
+    }
+    if (typeof source !== 'object' || Array.isArray(source)) {
+        return;
+    }
+    Object.assign(target, source);
 }
 
 function normalizeTimeoutValue(value) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config/config');
+const { warnUnknownOptions } = require('../utils/options-warning');
 
 const router = express.Router();
 
@@ -460,6 +461,19 @@ async function convertAnthropicToOllamaRequest(anthropicRequest, model, override
         ...optionsOverrides
     } = rawOverrides;
 
+    warnUnknownOptions(optionsOverrides, 'model override options', {
+        model,
+        route: 'anthropic/messages'
+    });
+    warnUnknownOptions(anthropicRequest.options, 'Anthropic request.options', {
+        model,
+        route: 'anthropic/messages'
+    });
+    warnUnknownOptions(anthropicRequest.extra_body?.options, 'Anthropic request.extra_body.options', {
+        model,
+        route: 'anthropic/messages'
+    });
+
     const messages = [];
 
     if (anthropicRequest.system) {
@@ -478,13 +492,18 @@ async function convertAnthropicToOllamaRequest(anthropicRequest, model, override
         });
     }
 
+    const optionsPayload = {
+        ...optionsOverrides
+    };
+
+    mergePlainObject(optionsPayload, anthropicRequest.extra_body?.options);
+    mergePlainObject(optionsPayload, anthropicRequest.options);
+
     const request = {
         model: model,
         messages: messages,
         stream: anthropicRequest.stream === true || anthropicRequest.stream === 'true',
-        options: {
-            ...optionsOverrides
-        }
+        options: optionsPayload
     };
 
     const transformedTools = transformAnthropicToolsToOpenAI(anthropicRequest.tools);
@@ -690,6 +709,16 @@ function resolveKeepAlive({ anthropicRequest, overrides }) {
     }
 
     return undefined;
+}
+
+function mergePlainObject(target, source) {
+    if (!target || !source) {
+        return;
+    }
+    if (typeof source !== 'object' || Array.isArray(source)) {
+        return;
+    }
+    Object.assign(target, source);
 }
 
 function normalizeTimeoutValue(value) {
