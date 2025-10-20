@@ -30,46 +30,66 @@ const knownOptionKeys = new Set([
 
 const warnedKeys = new Set();
 
-function warnUnknownOptions(options, sourceLabel, context = {}) {
+function processOptions(options, sourceLabel, context = {}, allowUnverified = true) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) {
-        return;
+        return { sanitized: null, unknownKeys: [] };
     }
 
-    for (const key of Object.keys(options)) {
+    const sanitized = { ...options };
+    const unknownKeys = [];
+
+    for (const key of Object.keys(sanitized)) {
         if (knownOptionKeys.has(key)) {
             continue;
         }
 
-        if (warnedKeys.has(key)) {
-            continue;
+        unknownKeys.push(key);
+        logOptionWarning(key, sourceLabel, context, allowUnverified);
+
+        if (!allowUnverified) {
+            delete sanitized[key];
         }
-        warnedKeys.add(key);
-
-        const parts = [
-            '[Ollama2OpenAI] Warning:',
-            `passing through unverified option '${key}'`
-        ];
-
-        if (sourceLabel) {
-            parts.push(`from ${sourceLabel}`);
-        }
-
-        if (context.model) {
-            parts.push(`for model '${context.model}'`);
-        }
-
-        if (context.route) {
-            parts.push(`(${context.route})`);
-        }
-
-        parts.push(
-            '— Ollama may ignore or reject this parameter. Please verify that it behaves as expected.'
-        );
-
-        console.warn(parts.join(' '));
     }
+
+    return { sanitized, unknownKeys };
+}
+
+function logOptionWarning(key, sourceLabel, context, allowUnverified) {
+    const warningKey = `${key}:${allowUnverified ? 'allow' : 'block'}`;
+    if (warnedKeys.has(warningKey)) {
+        return;
+    }
+    warnedKeys.add(warningKey);
+
+    const parts = [
+        '[Ollama2OpenAI]',
+        allowUnverified ? 'Warning:' : 'Notice:',
+        allowUnverified
+            ? `passing through unverified option '${key}'`
+            : `blocked unverified option '${key}'`
+    ];
+
+    if (sourceLabel) {
+        parts.push(`from ${sourceLabel}`);
+    }
+
+    if (context.model) {
+        parts.push(`for model '${context.model}'`);
+    }
+
+    if (context.route) {
+        parts.push(`(${context.route})`);
+    }
+
+    if (allowUnverified) {
+        parts.push('— Ollama may ignore or reject this parameter. Please verify that it behaves as expected.');
+    } else {
+        parts.push('— Enable "Allow unverified parameters" in the admin panel if you need to pass this through.');
+    }
+
+    console.warn(parts.join(' '));
 }
 
 module.exports = {
-    warnUnknownOptions
+    processOptions
 };

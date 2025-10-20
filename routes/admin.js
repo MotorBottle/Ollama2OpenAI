@@ -73,7 +73,8 @@ router.get('/admin/settings', requireAuth, (req, res) => {
     console.log('Settings get request - current ollamaUrl:', config.config.ollamaUrl);
     res.json({
         ollamaUrl: config.config.ollamaUrl,
-        adminUsername: config.config.adminUsername
+        adminUsername: config.config.adminUsername,
+        allowUnverifiedOptions: config.config.allowUnverifiedOptions !== false
     });
 });
 
@@ -86,6 +87,9 @@ router.post('/admin/settings', requireAuth, (req, res) => {
     }
     if (req.body.adminPassword) {
         config.updateAdminPassword(req.body.adminPassword);
+    }
+    if (req.body.allowUnverifiedOptions !== undefined) {
+        updates.allowUnverifiedOptions = !!req.body.allowUnverifiedOptions;
     }
     
     console.log('Updates to apply:', updates);

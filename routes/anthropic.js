@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config/config');
-const { warnUnknownOptions } = require('../utils/options-warning');
+const { processOptions } = require('../utils/options-warning');
 
 const router = express.Router();
 
@@ -461,18 +461,26 @@ async function convertAnthropicToOllamaRequest(anthropicRequest, model, override
         ...optionsOverrides
     } = rawOverrides;
 
-    warnUnknownOptions(optionsOverrides, 'model override options', {
-        model,
-        route: 'anthropic/messages'
-    });
-    warnUnknownOptions(anthropicRequest.options, 'Anthropic request.options', {
-        model,
-        route: 'anthropic/messages'
-    });
-    warnUnknownOptions(anthropicRequest.extra_body?.options, 'Anthropic request.extra_body.options', {
-        model,
-        route: 'anthropic/messages'
-    });
+    const allowUnverified = config.config.allowUnverifiedOptions !== false;
+
+    const overrideOptionsResult = processOptions(
+        optionsOverrides,
+        'model override options',
+        { model, route: 'anthropic/messages' },
+        allowUnverified
+    );
+    const requestOptionsResult = processOptions(
+        anthropicRequest.options,
+        'Anthropic request.options',
+        { model, route: 'anthropic/messages' },
+        allowUnverified
+    );
+    const extraOptionsResult = processOptions(
+        anthropicRequest.extra_body?.options,
+        'Anthropic request.extra_body.options',
+        { model, route: 'anthropic/messages' },
+        allowUnverified
+    );
 
     const messages = [];
 
@@ -492,12 +500,11 @@ async function convertAnthropicToOllamaRequest(anthropicRequest, model, override
         });
     }
 
-    const optionsPayload = {
-        ...optionsOverrides
-    };
+    const optionsPayload = {};
 
-    mergePlainObject(optionsPayload, anthropicRequest.extra_body?.options);
-    mergePlainObject(optionsPayload, anthropicRequest.options);
+    mergePlainObject(optionsPayload, overrideOptionsResult.sanitized);
+    mergePlainObject(optionsPayload, extraOptionsResult.sanitized);
+    mergePlainObject(optionsPayload, requestOptionsResult.sanitized);
 
     const request = {
         model: model,

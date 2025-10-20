@@ -92,6 +92,10 @@ async function loadSettings() {
     const settings = await apiCall('/admin/settings');
     if (settings) {
         document.getElementById('ollama-url').value = settings.ollamaUrl || '';
+        const allowCheckbox = document.getElementById('allow-unverified-options');
+        if (allowCheckbox) {
+            allowCheckbox.checked = settings.allowUnverifiedOptions !== false;
+        }
     }
 }
 
@@ -100,7 +104,8 @@ async function saveSettings(e) {
     const formData = new FormData(e.target);
     const settings = {
         ollamaUrl: formData.get('ollama-url'),
-        adminPassword: formData.get('admin-password')
+        adminPassword: formData.get('admin-password'),
+        allowUnverifiedOptions: formData.get('allow-unverified-options') === 'on'
     };
     
     const result = await apiCall('/admin/settings', {

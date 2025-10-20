@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const config = require('../config/config');
-const { warnUnknownOptions } = require('../utils/options-warning');
+const { processOptions } = require('../utils/options-warning');
 
 const router = express.Router();
 
@@ -508,21 +508,29 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
         exclude_reasoning: _excludeReasoningOverride,
         keep_alive: _overrideKeepAlive,
         keepAlive: _overrideKeepAliveCamel,
-        ...optionsOverrides
+        ...rawOptionsOverrides
     } = overrides || {};
 
-    warnUnknownOptions(optionsOverrides, 'model override options', {
-        model,
-        route: 'openai/chat'
-    });
-    warnUnknownOptions(openaiRequest.options, 'OpenAI request.options', {
-        model,
-        route: 'openai/chat'
-    });
-    warnUnknownOptions(openaiRequest.extra_body?.options, 'OpenAI request.extra_body.options', {
-        model,
-        route: 'openai/chat'
-    });
+    const allowUnverified = config.config.allowUnverifiedOptions !== false;
+
+    const overrideOptionsResult = processOptions(
+        rawOptionsOverrides,
+        'model override options',
+        { model, route: 'openai/chat' },
+        allowUnverified
+    );
+    const requestOptionsResult = processOptions(
+        openaiRequest.options,
+        'OpenAI request.options',
+        { model, route: 'openai/chat' },
+        allowUnverified
+    );
+    const extraOptionsResult = processOptions(
+        openaiRequest.extra_body?.options,
+        'OpenAI request.extra_body.options',
+        { model, route: 'openai/chat' },
+        allowUnverified
+    );
 
     // Process messages to handle tool responses and image content
     const messages = await Promise.all(openaiRequest.messages.map(async (msg) => {
@@ -589,12 +597,11 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
         return msg;
     }));
 
-    const optionsPayload = {
-        ...optionsOverrides
-    };
+    const optionsPayload = {};
 
-    mergePlainObject(optionsPayload, openaiRequest.extra_body?.options);
-    mergePlainObject(optionsPayload, openaiRequest.options);
+    mergePlainObject(optionsPayload, overrideOptionsResult.sanitized);
+    mergePlainObject(optionsPayload, extraOptionsResult.sanitized);
+    mergePlainObject(optionsPayload, requestOptionsResult.sanitized);
 
     const ollamaRequest = {
         model: model,

@@ -190,6 +190,15 @@
                             <label for="admin-password" class="form-label">Admin Password</label>
                             <input type="password" class="form-control" id="admin-password" name="admin-password" placeholder="Leave empty to keep current">
                         </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="allow-unverified-options" name="allow-unverified-options">
+                            <label class="form-check-label" for="allow-unverified-options">
+                                Allow unverified Ollama options to pass through
+                            </label>
+                            <small class="form-text text-muted">
+                                When disabled, unknown parameters in requests or model overrides are stripped before reaching Ollama.
+                            </small>
+                        </div>
                         <button type="submit" class="btn btn-primary">Save Settings</button>
                     </form>
                 </div>

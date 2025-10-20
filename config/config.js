@@ -32,6 +32,7 @@ class ConfigManager {
             adminPasswordHash: bcrypt.hashSync(process.env.ADMIN_PASSWORD || 'admin', 10),
             serverPort: parseInt(process.env.PORT) || 3000,
             sessionSecret: process.env.SESSION_SECRET || ('ollama2openai-secret-' + Date.now()),
+            allowUnverifiedOptions: true,
             rateLimit: {
                 windowMs: 15 * 60 * 1000, // 15 minutes
                 max: parseInt(process.env.RATE_LIMIT_MAX) || 1000
