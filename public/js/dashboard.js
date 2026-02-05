@@ -53,6 +53,11 @@ function showSection(sectionName) {
 }
 
 // API functions
+function modelEndpoint(modelId) {
+    // Encode model IDs so names with slashes/colons (e.g. HF paths) don't break the route
+    return `/admin/models/${encodeURIComponent(modelId)}`;
+}
+
 async function apiCall(endpoint, options = {}) {
     try {
         const response = await fetch(endpoint, {
@@ -390,7 +395,7 @@ async function saveModel(modelId) {
         }
         
         // Save to backend
-        const result = await apiCall(`/admin/models/${modelId}`, {
+        const result = await apiCall(modelEndpoint(modelId), {
             method: 'PATCH',
             body: JSON.stringify({ 
                 displayName: displayNameInput.value,
@@ -446,7 +451,7 @@ function cancelEdit(modelId) {
 }
 
 async function toggleModel(modelId, enabled) {
-    await apiCall(`/admin/models/${modelId}`, {
+    await apiCall(modelEndpoint(modelId), {
         method: 'PATCH',
         body: JSON.stringify({ enabled })
     });
