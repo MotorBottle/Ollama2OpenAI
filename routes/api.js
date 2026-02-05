@@ -672,6 +672,17 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
         return { ...msg, tool_calls: normalizedCalls };
     });
 
+    // Validate JSON-looking option strings to catch malformed payloads early
+    Object.entries(ollamaRequest.options || {}).forEach(([key, value]) => {
+        if (typeof value === 'string' && isLikelyJsonString(value)) {
+            try {
+                JSON.parse(value);
+            } catch (err) {
+                throw new Error(`Invalid JSON in option '${key}': ${err.message}`);
+            }
+        }
+    });
+
     // Pass through tools if provided (both OpenAI format and Ollama format are the same)
     if (openaiRequest.tools) {
         ollamaRequest.tools = openaiRequest.tools;
@@ -917,6 +928,18 @@ function createOpenAIError(error, model) {
                 }
             };
         }
+        if (error.message.startsWith('Invalid JSON in option')) {
+            const match = error.message.match(/option '([^']+)'/);
+            return {
+                status: 400,
+                error: {
+                    message: error.message,
+                    type: 'invalid_request_error',
+                    param: match ? match[1] : 'options',
+                    code: 'invalid_request'
+                }
+            };
+        }
     }
 
     // Handle specific error types with OpenAI-compatible error codes
@@ -1083,6 +1106,15 @@ function safeTruncate(str, maxLen) {
     if (typeof str !== 'string') return '';
     if (str.length <= maxLen) return str;
     return str.slice(0, maxLen) + '...<truncated>';
+}
+
+function isLikelyJsonString(str) {
+    if (typeof str !== 'string') return false;
+    const trimmed = str.trim();
+    if (!trimmed) return false;
+    const starts = trimmed[0];
+    const ends = trimmed[trimmed.length - 1];
+    return (starts === '{' && ends === '}') || (starts === '[' && ends === ']');
 }
 
 function summarizeToolCalls(messages) {
