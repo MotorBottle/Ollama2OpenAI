@@ -339,8 +339,7 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             model: req.requestedModel,
             actualModel: getModelMapping(req.requestedModel) || req.requestedModel
         });
-        console.error('Last Ollama request (truncated):', safeTruncate(JSON.stringify(req._ollamaRequest || {}), 2000));
-        console.error('Last OpenAI request (truncated):', safeTruncate(JSON.stringify(req.body || {}), 2000));
+        console.error('Last Ollama request (full):', JSON.stringify(req._ollamaRequest || {}, null, 2));
         const tcSummary = summarizeToolCalls(req._ollamaRequest?.messages);
         if (tcSummary) {
             console.error('Tool call arguments summary:', tcSummary);
