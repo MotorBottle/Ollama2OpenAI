@@ -629,6 +629,35 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
         options: optionsPayload
     };
 
+    // Validate and normalize tool call arguments so we don't send malformed JSON to Ollama
+    ollamaRequest.messages = ollamaRequest.messages.map(msg => {
+        if (!Array.isArray(msg.tool_calls)) {
+            return msg;
+        }
+        const normalizedCalls = msg.tool_calls.map((tc, idx) => {
+            if (!tc?.function) return tc;
+            const fn = { ...tc.function };
+            // If arguments is an object, stringify it; if it's a string, validate it is valid JSON
+            if (fn.arguments !== undefined) {
+                if (typeof fn.arguments === 'object') {
+                    try {
+                        fn.arguments = JSON.stringify(fn.arguments);
+                    } catch (err) {
+                        throw new Error(`Invalid tool_calls[${idx}].function.arguments: ${err.message}`);
+                    }
+                } else if (typeof fn.arguments === 'string') {
+                    try {
+                        JSON.parse(fn.arguments);
+                    } catch (err) {
+                        throw new Error(`Invalid JSON in tool_calls[${idx}].function.arguments: ${err.message}`);
+                    }
+                }
+            }
+            return { ...tc, function: fn };
+        });
+        return { ...msg, tool_calls: normalizedCalls };
+    });
+
     // Pass through tools if provided (both OpenAI format and Ollama format are the same)
     if (openaiRequest.tools) {
         ollamaRequest.tools = openaiRequest.tools;
@@ -861,6 +890,21 @@ function convertToOpenAIResponse(ollamaFinal, modelName, content, thinking, reas
 
 
 function createOpenAIError(error, model) {
+    // Handle local validation errors (no upstream response)
+    if (!error.response && typeof error.message === 'string') {
+        if (error.message.startsWith('Invalid tool_calls')) {
+            return {
+                status: 400,
+                error: {
+                    message: error.message,
+                    type: 'invalid_request_error',
+                    param: 'tool_calls',
+                    code: 'invalid_request'
+                }
+            };
+        }
+    }
+
     // Handle specific error types with OpenAI-compatible error codes
     if (error.response) {
         const status = error.response.status;
