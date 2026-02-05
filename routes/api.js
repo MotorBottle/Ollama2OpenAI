@@ -556,11 +556,21 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
     );
 
     // Process messages to handle tool responses and image content
-    const messages = await Promise.all(openaiRequest.messages.map(async (msg) => {
+    const messages = await Promise.all(openaiRequest.messages.map(async (msg, msgIdx) => {
         // OpenAI sends tool responses with role: "tool"
         if (msg.role === 'tool') {
-            // OpenAI format: { role: "tool", content: "result", tool_call_id: "call_123" }
-            // Ollama expects similar format, so pass through
+            // Validate tool result content if it looks like JSON
+            if (typeof msg.content === 'string') {
+                const trimmed = msg.content.trim();
+                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    try {
+                        JSON.parse(trimmed);
+                    } catch (err) {
+                        throw new Error(`Invalid JSON in tool result message at index ${msgIdx}: ${err.message}`);
+                    }
+                }
+            }
+            // Pass through
             return msg;
         }
 
