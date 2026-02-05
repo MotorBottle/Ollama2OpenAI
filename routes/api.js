@@ -341,6 +341,10 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
         });
         console.error('Last Ollama request (truncated):', safeTruncate(JSON.stringify(req._ollamaRequest || {}), 2000));
         console.error('Last OpenAI request (truncated):', safeTruncate(JSON.stringify(req.body || {}), 2000));
+        const tcSummary = summarizeToolCalls(req._ollamaRequest?.messages);
+        if (tcSummary) {
+            console.error('Tool call arguments summary:', tcSummary);
+        }
         logRequestWithTokens(req, '', Date.now() - startTime, 'error', { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
 
         // Enhanced OpenAI-compatible error handling
@@ -1069,6 +1073,22 @@ function safeTruncate(str, maxLen) {
     if (typeof str !== 'string') return '';
     if (str.length <= maxLen) return str;
     return str.slice(0, maxLen) + '...<truncated>';
+}
+
+function summarizeToolCalls(messages) {
+    if (!Array.isArray(messages)) return '';
+    const summaries = [];
+    messages.forEach((msg, mIdx) => {
+        if (Array.isArray(msg?.tool_calls)) {
+            msg.tool_calls.forEach((tc, tIdx) => {
+                const args = typeof tc?.function?.arguments === 'string'
+                    ? safeTruncate(tc.function.arguments, 500)
+                    : JSON.stringify(tc?.function?.arguments);
+                summaries.push(`[msg ${mIdx} tool_call ${tIdx}] ${tc?.function?.name || 'fn'} args=${args}`);
+            });
+        }
+    });
+    return summaries.join('; ');
 }
 
 function convertToOllamaEmbedRequest(openaiRequest, model) {
