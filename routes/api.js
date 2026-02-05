@@ -677,6 +677,12 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
             try {
                 JSON.parse(value);
             } catch (err) {
+                // Auto-fix: attempt to close a missing trailing brace/bracket if safe
+                const fixed = tryAutoCloseJson(value);
+                if (fixed !== null) {
+                    ollamaRequest.options[key] = fixed;
+                    return;
+                }
                 throw new Error(`Invalid JSON in option '${key}': ${err.message}`);
             }
         }
@@ -742,6 +748,7 @@ async function convertToOllamaRequest(openaiRequest, model, overrides) {
             ollamaRequest.think = true;
         }
     }
+
     
     // Map OpenAI parameters to Ollama (user params override pre-set overrides)
     if (openaiRequest.temperature !== undefined) {
@@ -1116,6 +1123,29 @@ function isLikelyJsonString(str) {
     return (starts === '{' && ends === '}') || (starts === '[' && ends === ']');
 }
 
+function tryAutoCloseJson(str) {
+    if (typeof str !== 'string') return null;
+    const trimmed = str.trimEnd();
+    // Simple heuristic: if it starts with { but doesn't end with }, add it; same for [
+    if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
+        const candidate = trimmed + '}';
+        try {
+            return JSON.parse(candidate) ? candidate : null;
+        } catch {
+            return null;
+        }
+    }
+    if (trimmed.startsWith('[') && !trimmed.endsWith(']')) {
+        const candidate = trimmed + ']';
+        try {
+            return JSON.parse(candidate) ? candidate : null;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 function summarizeToolCalls(messages) {
     if (!Array.isArray(messages)) return '';
     const summaries = [];
@@ -1128,9 +1158,16 @@ function summarizeToolCalls(messages) {
                 summaries.push(`[msg ${mIdx} tool_call ${tIdx}] ${tc?.function?.name || 'fn'} args=${args}`);
             });
         }
+        if (msg?.role === 'tool') {
+            const preview = typeof msg.content === 'string'
+                ? safeTruncate(msg.content, 500)
+                : JSON.stringify(msg.content);
+            summaries.push(`[msg ${mIdx} tool_result] content=${preview}`);
+        }
     });
     return summaries.join('; ');
 }
+
 
 function convertToOllamaEmbedRequest(openaiRequest, model) {
     // Handle input validation similar to Ollama's EmbeddingsMiddleware
