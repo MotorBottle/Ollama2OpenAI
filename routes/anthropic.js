@@ -201,10 +201,24 @@ router.post('/', validateApiKey, checkModelAccess, async (req, res) => {
         }
     } catch (error) {
         console.error('Anthropic endpoint error:', error.message);
+        let parsedErrorData = error.response?.data;
+
+        // If Ollama responded with a streamed error body (common when streaming), read it so we can surface the message.
+        if (parsedErrorData && typeof parsedErrorData.on === 'function') {
+            try {
+                const bodyText = await readStreamBody(parsedErrorData);
+                parsedErrorData = tryParseJson(bodyText) ?? bodyText;
+                error.response.data = parsedErrorData;
+                error.response.dataRaw = bodyText;
+            } catch (streamErr) {
+                console.warn('Failed to read error stream from Ollama:', streamErr.message);
+            }
+        }
+
         console.error('Error details:', {
             status: error.response?.status,
             statusText: error.response?.statusText,
-            data: error.response?.data,
+            data: parsedErrorData,
             model: req.requestedModel
         });
 
@@ -1053,10 +1067,39 @@ function logRequestWithTokens(req, responseContent, responseTime, status, tokenU
     });
 }
 
+async function readStreamBody(stream) {
+    return await new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.setEncoding('utf8');
+        stream.on('data', chunk => chunks.push(chunk));
+        stream.on('end', () => resolve(chunks.join('')));
+        stream.on('error', reject);
+    });
+}
+
+function tryParseJson(text) {
+    if (typeof text !== 'string') return text;
+    try {
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
+function extractOllamaErrorMessage(data, fallback = 'Invalid request') {
+    if (!data) return fallback;
+    if (typeof data === 'string') return data;
+    if (typeof data.error === 'string') return data.error;
+    if (data.error && typeof data.error.message === 'string') return data.error.message;
+    if (typeof data.message === 'string') return data.message;
+    return fallback;
+}
+
 function createAnthropicError(error, model) {
     if (error.response) {
         const status = error.response.status;
         const data = error.response.data;
+        const errorMessage = extractOllamaErrorMessage(data, error.message || 'Invalid request');
 
         switch (status) {
             case 400:
@@ -1064,7 +1107,7 @@ function createAnthropicError(error, model) {
                     status: 400,
                     error: {
                         type: 'invalid_request_error',
-                        message: data?.error?.message || 'Invalid request',
+                        message: errorMessage,
                         param: data?.error?.param || null,
                         code: data?.error?.code || 'invalid_request'
                     }
@@ -1138,7 +1181,7 @@ function createAnthropicError(error, model) {
                     status: status,
                     error: {
                         type: 'server_error',
-                        message: data?.error || error.message || 'Unknown error',
+                        message: errorMessage,
                         param: null,
                         code: 'unknown_error'
                     }
