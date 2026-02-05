@@ -156,6 +156,9 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             overrides
         });
 
+        // Keep a copy for debugging in error handler
+        req._ollamaRequest = ollamaRequest;
+
         const ollamaResponse = await axios.post(
             `${config.config.ollamaUrl}/api/chat`,
             ollamaRequest,
@@ -336,6 +339,8 @@ router.post('/chat/completions', validateApiKey, checkModelAccess, async (req, r
             model: req.requestedModel,
             actualModel: getModelMapping(req.requestedModel) || req.requestedModel
         });
+        console.error('Last Ollama request (truncated):', safeTruncate(JSON.stringify(req._ollamaRequest || {}), 2000));
+        console.error('Last OpenAI request (truncated):', safeTruncate(JSON.stringify(req.body || {}), 2000));
         logRequestWithTokens(req, '', Date.now() - startTime, 'error', { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
 
         // Enhanced OpenAI-compatible error handling
@@ -1014,6 +1019,12 @@ function extractOllamaErrorMessage(data, fallback = 'Invalid request') {
     if (data.error && typeof data.error.message === 'string') return data.error.message;
     if (typeof data.message === 'string') return data.message;
     return fallback;
+}
+
+function safeTruncate(str, maxLen) {
+    if (typeof str !== 'string') return '';
+    if (str.length <= maxLen) return str;
+    return str.slice(0, maxLen) + '...<truncated>';
 }
 
 function convertToOllamaEmbedRequest(openaiRequest, model) {
